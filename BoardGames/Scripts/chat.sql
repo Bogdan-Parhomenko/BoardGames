@@ -1,12 +1,9 @@
 -- chat.sql
 
--- Типы чатов: личный или групповой (для события)
-CREATE TYPE chat_type AS ENUM ('private', 'event');
-
 -- Таблица чатов
 CREATE TABLE chats (
     chat_id       SERIAL PRIMARY KEY,
-    chat_type     chat_type NOT NULL DEFAULT 'private',
+    chat_type     TEXT NOT NULL DEFAULT 'Private',
     event_id      INTEGER,                    -- для групповых чатов события
     created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
 

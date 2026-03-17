@@ -68,6 +68,7 @@ public class GameEventDetailsDto
     public int? DurationMinutes { get; set; }
     public string Address { get; set; } = null!;
     public int MaxPlayers { get; set; }
+    public int CreatorId { get; set; }
     public string CreatorName { get; set; } = null!;
     public string? CreatorPhone { get; set; }
     public string? CreatorPhoto { get; set; }
