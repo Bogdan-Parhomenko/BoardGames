@@ -17,6 +17,9 @@ public class User
 
     public ICollection<ChatParticipant> ChatParticipants { get; set; } = new List<ChatParticipant>();
     public ICollection<Message> SentMessages { get; set; } = new List<Message>();
+
+    public ICollection<UserReview> ReviewsWritten { get; set; } = new List<UserReview>();
+    public ICollection<UserReview> ReviewsReceived { get; set; } = new List<UserReview>();
 }
 
 public class GameCategory

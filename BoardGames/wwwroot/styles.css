@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --bg-main: #f7f1e8;
     --bg-card: #fffaf4;
     --bg-header: #e8d5c4;
@@ -305,6 +305,7 @@ textarea {
 
 .participant-name {
     font-weight: 600;
+    text-decoration: none;
 }
 
 .participant-phone,
@@ -395,7 +396,7 @@ textarea {
     gap: 0.75rem;
 }
 
-/* ====== ���� ====== */
+/* ====== Чаты ====== */
 
 .chats-container {
     display: flex;
@@ -417,7 +418,8 @@ textarea {
 }
 
 .chats-sidebar-header {
-    padding: 1rem;
+    padding: 1.25rem;
+    padding-bottom: 21px;
     border-bottom: 1px solid var(--border-soft);
     background-color: var(--bg-header);
 }
@@ -519,7 +521,7 @@ textarea {
     margin-left: 0.3rem;
 }
 
-/* ������� ���� */
+/* Область чата */
 .chat-area {
     flex: 1;
     display: flex;
@@ -679,7 +681,7 @@ textarea {
     color: #c00;
 }
 
-/* ���� ��������� */
+/* Ввод сообщения */
 .chat-input-area {
     padding: 0.75rem 1rem;
     border-top: 1px solid var(--border-soft);
@@ -811,7 +813,7 @@ textarea {
         background-color: rgba(200, 157, 124, 0.2);
     }
 
-/* ��������� badge */
+/* Навигация badge */
 .nav-badge {
     background-color: #e74c3c;
     color: white;
@@ -821,19 +823,18 @@ textarea {
     margin-left: 0.3rem;
 }
 
-/* ������������ ����� ���������� */
+/* Кликабельные имена участников */
 .clickable-user {
     cursor: pointer;
     color: var(--accent);
-    text-decoration: underline;
-    text-decoration-style: dotted;
+    text-decoration: none;
 }
 
     .clickable-user:hover {
         color: #6d4a2e;
     }
 
-/* ���� ��������� */
+/* Дата сообщений */
 .messages-date-divider {
     text-align: center;
     margin: 1rem 0;
@@ -859,7 +860,7 @@ textarea {
         background-color: var(--border-soft);
     }
 
-/* ������������ ��� ��������� */
+/* Адаптивность для мобильных */
 @media (max-width: 768px) {
     .chats-container {
         flex-direction: column;
@@ -893,4 +894,363 @@ textarea {
     cursor: pointer;
     padding: 0.3rem;
     margin-right: 0.3rem;
+}
+
+/* ====== Публичный профиль ====== */
+
+.public-profile-card {
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    padding-top: 2.5rem;
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: #6b574e;
+    line-height: 1;
+    padding: 0.25rem 0.5rem;
+    z-index: 10;
+    border-radius: 50%;
+    transition: 0.15s;
+}
+
+    .modal-close-btn:hover {
+        color: var(--accent);
+        background-color: rgba(200, 157, 124, 0.15);
+    }
+
+.public-profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.public-profile-photo {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--border-soft);
+    background-color: #f3e3d3;
+    margin-bottom: 1rem;
+}
+
+.public-profile-info {
+    width: 100%;
+}
+
+    .public-profile-info h2 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.5rem;
+    }
+
+.public-profile-city {
+    color: #6b574e;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+    .public-profile-city::before {
+        content: "📍 ";
+    }
+
+.public-profile-stats {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    padding: 1rem;
+    background-color: #f9f5f0;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.stat-emoji {
+    font-size: 2rem;
+}
+
+.stat-count {
+    font-weight: 600;
+    font-size: 1.2rem;
+}
+
+.stat-item.positive .stat-count {
+    color: #27ae60;
+}
+
+.stat-item.neutral .stat-count {
+    color: #f39c12;
+}
+
+.stat-item.negative .stat-count {
+    color: #e74c3c;
+}
+
+.public-profile-section {
+    margin-bottom: 1rem;
+}
+
+    .public-profile-section h4 {
+        margin: 0 0 0.5rem 0;
+        color: #6b574e;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+.public-profile-text {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+/* ====== Форма отзыва ====== */
+
+.review-form-section {
+    background-color: #f9f5f0;
+    padding: 1rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+    .review-form-section h4 {
+        margin: 0 0 1rem 0;
+    }
+
+.rating-selector {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.rating-option {
+    cursor: pointer;
+}
+
+    .rating-option input {
+        display: none;
+    }
+
+.rating-emoji {
+    font-size: 2.5rem;
+    opacity: 0.4;
+    transition: 0.15s;
+    display: block;
+}
+
+.rating-option:hover .rating-emoji {
+    opacity: 0.7;
+    transform: scale(1.1);
+}
+
+.rating-option input:checked + .rating-emoji {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.review-form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* ====== Список отзывов ====== */
+
+.reviews-section h4 {
+    margin: 0 0 1rem 0;
+}
+
+.reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.reviews-empty {
+    text-align: center;
+    color: #6b574e;
+    padding: 1rem;
+}
+
+.review-item {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.75rem;
+    background-color: #fffaf4;
+    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+}
+
+.review-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 1px solid var(--border-soft);
+}
+
+.review-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.review-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+
+.review-author {
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-main);
+}
+
+    .review-author:hover {
+        color: var(--accent);
+    }
+
+.review-rating-line {
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+}
+
+.review-rating-label {
+    color: #6b574e;
+    font-weight: 500;
+}
+
+.review-rating-emoji {
+    font-size: 1.1rem;
+    margin-left: 0.2rem;
+}
+
+.review-text {
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+.review-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.review-date {
+    font-size: 0.75rem;
+    color: #999;
+}
+
+.review-actions {
+    display: flex;
+    gap: 0.3rem;
+}
+
+    .review-actions button {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+    }
+
+/* ====== Кликабельные элементы ====== */
+
+.clickable-user {
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+    .clickable-user:hover {
+        opacity: 0.8;
+    }
+
+/* ====== Шапка чата кликабельная ====== */
+
+.chat-header-avatar.clickable,
+.chat-header-name.clickable {
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+    .chat-header-avatar.clickable:hover {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+
+    .chat-header-name.clickable:hover {
+        color: var(--accent);
+    }
+
+/* ====== Отзывы в личном профиле ====== */
+
+.my-reviews-section {
+    margin-top: 1.5rem;
+}
+
+    .my-reviews-section h3 {
+        margin-bottom: 1rem;
+    }
+
+.my-reviews-stats {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding: 0.75rem;
+    background-color: #f9f5f0;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+
+    .my-reviews-stats .stat-item {
+        flex-direction: row;
+        gap: 0.3rem;
+    }
+
+    .my-reviews-stats .stat-emoji {
+        font-size: 1.3rem;
+    }
+
+    .my-reviews-stats .stat-count {
+        font-size: 1rem;
+    }
+
+/* Адаптивность */
+@media (max-width: 500px) {
+    .public-profile-stats {
+        gap: 1rem;
+    }
+
+    .stat-emoji {
+        font-size: 1.5rem;
+    }
+
+    .review-form-actions {
+        flex-direction: column;
+    }
+
+        .review-form-actions button {
+            width: 100%;
+        }
 }
