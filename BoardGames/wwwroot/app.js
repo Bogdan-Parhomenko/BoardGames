@@ -3,6 +3,8 @@ const API_BASE_URL = "https://localhost:7267/api";
 let currentUser = null;
 let currentChatId = null;
 let chatRefreshInterval = null;
+let currentProfileUserId = null;
+let currentProfileData = null;
 
 // ====== Список смайликов ======
 const EMOJI_LIST = [
@@ -229,6 +231,9 @@ async function loadProfile() {
         currentUser.fullName = profile.fullName;
         saveCurrentUser(currentUser);
         updateUserInfoHeader(profile);
+
+        // Загружаем отзывы о себе
+        loadMyReviews();
     } catch (err) {
         console.error(err);
     }
@@ -762,11 +767,12 @@ async function openEventDetails(eventId) {
             <p><strong>Категории:</strong> ${categoriesText}</p>
             <p><strong>Описание:</strong><br/>${ev.description ?? "—"}</p>
             <div class="event-organizer-block">
-                <img class="event-organizer-avatar clickable-user" src="${creatorPhoto}" alt="${ev.creatorName}" onclick="startPrivateChat(${ev.creatorId})" title="Написать сообщение">
+                <img class="event-organizer-avatar clickable-user" src="${creatorPhoto}" alt="${ev.creatorName}" 
+                     onclick="openPublicProfile(${ev.creatorId})" title="Открыть профиль">
                 <div class="event-organizer-info">
-                    <div class="event-organizer-name clickable-user" onclick="startPrivateChat(${ev.creatorId})" title="Написать сообщение">${ev.creatorName}</div>
+                    <div class="event-organizer-name clickable-user" onclick="openPublicProfile(${ev.creatorId})" title="Открыть профиль">${ev.creatorName}</div>
                     <div class="event-organizer-phone">
-                        ${ev.creatorPhone || "телефон не указан"}
+                        ${ev.creatorPhone || "Телефон не указан"}
                     </div>
                 </div>
             </div>
@@ -776,14 +782,15 @@ async function openEventDetails(eventId) {
             html += `<h4>Участники (${ev.participants.length}):</h4><div class="participant-list">`;
             ev.participants.forEach(p => {
                 const photo = p.photo || "img/user-placeholder.png";
-                const phoneText = p.phone || "телефон не указан";
+                const phoneText = p.phone || "Телефон не указан";
                 const commentText = p.comment ? `Комментарий: ${p.comment}` : "Комментарий не указан";
 
                 html += `
                     <div class="participant-item">
-                        <img class="participant-avatar clickable-user" src="${photo}" alt="${p.fullName}" onclick="startPrivateChat(${p.userId})" title="Написать сообщение">
+                        <img class="participant-avatar clickable-user" src="${photo}" alt="${p.fullName}" 
+                             onclick="openPublicProfile(${p.userId})" title="Открыть профиль">
                         <div class="participant-info">
-                            <div class="participant-name clickable-user" onclick="startPrivateChat(${p.userId})" title="Написать сообщение">${p.fullName}</div>
+                            <div class="participant-name clickable-user" onclick="openPublicProfile(${p.userId})" title="Открыть профиль">${p.fullName}</div>
                             <div class="participant-phone">${phoneText}</div>
                             <div class="participant-comment">${commentText}</div>
                         </div>
@@ -1109,12 +1116,27 @@ function renderChatArea(chat, messages) {
         ? `${chat.participants.length} участников`
         : "Личный чат";
 
+    // Для личного чата делаем шапку кликабельной
+    const isPrivateChat = chat.chatType === 'private';
+    let otherUserId = null;
+
+    if (isPrivateChat && currentUser) {
+        const otherParticipant = chat.participants.find(p => p.userId !== currentUser.userId);
+        if (otherParticipant) {
+            otherUserId = otherParticipant.userId;
+        }
+    }
+
+    const clickableClass = isPrivateChat && otherUserId ? 'clickable' : '';
+    const onClickAvatar = isPrivateChat && otherUserId ? `onclick="openProfileFromChat(${otherUserId})"` : '';
+    const onClickName = isPrivateChat && otherUserId ? `onclick="openProfileFromChat(${otherUserId})"` : '';
+
     area.innerHTML = `
         <div class="chat-header">
             <button class="chat-header-back" onclick="closeChatArea()">←</button>
-            <img class="chat-header-avatar" src="${photo}" alt="${chat.chatName}">
+            <img class="chat-header-avatar ${clickableClass}" src="${photo}" alt="${chat.chatName}" ${onClickAvatar} title="${isPrivateChat ? 'Открыть профиль' : ''}">
             <div class="chat-header-info">
-                <div class="chat-header-name">${chat.chatName}</div>
+                <div class="chat-header-name ${clickableClass}" ${onClickName} title="${isPrivateChat ? 'Открыть профиль' : ''}">${chat.chatName}</div>
                 <div class="chat-header-status">${participantsText}</div>
             </div>
             <div class="chat-header-actions">
@@ -1135,6 +1157,11 @@ function renderChatArea(chat, messages) {
 
     renderMessages(messages);
     scrollToBottom();
+}
+
+function openProfileFromChat(userId) {
+    if (!userId) return;
+    openPublicProfile(userId);
 }
 
 function updateMessagesOnly(messages) {
@@ -1322,6 +1349,15 @@ function closeChatArea() {
 // Начать личный чат
 async function startPrivateChat(otherUserId) {
     if (!currentUser) return;
+
+    // Преобразуем в число
+    otherUserId = parseInt(otherUserId, 10);
+
+    if (isNaN(otherUserId)) {
+        showMessage("Ошибка: некорректный ID пользователя", "error");
+        return;
+    }
+
     if (otherUserId === currentUser.userId) {
         showMessage("Вы не можете написать самому себе", "error");
         return;
@@ -1329,6 +1365,7 @@ async function startPrivateChat(otherUserId) {
 
     // Закрыть модалки
     closeEventDetails();
+    closePublicProfile();
 
     try {
         const resp = await fetch(`${API_BASE_URL}/chats/private`, {
@@ -1348,7 +1385,7 @@ async function startPrivateChat(otherUserId) {
 
         const chat = await resp.json();
         showSection("chats");
-        setTimeout(() => openChat(chat.chatId), 100);
+        setTimeout(() => openChat(chat.chatId, true), 100);
     } catch (err) {
         console.error(err);
         showMessage("Ошибка создания чата", "error");
@@ -1569,3 +1606,390 @@ document.addEventListener("DOMContentLoaded", () => {
     // Периодическое обновление badge непрочитанных
     setInterval(updateUnreadBadge, 30000);
 });
+
+async function openPublicProfile(userId) {
+    if (!userId) return;
+
+    // Преобразуем в число
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) return;
+
+    // Если это свой профиль, открываем личный
+    if (currentUser && userId === currentUser.userId) {
+        closeEventDetails();
+        showSection('profile');
+        return;
+    }
+
+    currentProfileUserId = userId;
+
+    try {
+        const url = currentUser
+            ? `${API_BASE_URL}/reviews/profile/${userId}?currentUserId=${currentUser.userId}`
+            : `${API_BASE_URL}/reviews/profile/${userId}`;
+
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            showMessage("Не удалось загрузить профиль", "error");
+            return;
+        }
+
+        const profile = await resp.json();
+        currentProfileData = profile;
+        renderPublicProfile(profile);
+        document.getElementById("public-profile-modal").classList.remove("hidden");
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка загрузки профиля", "error");
+    }
+}
+
+
+function renderPublicProfile(profile) {
+    // Основная информация
+    document.getElementById("public-profile-photo").src = profile.photo || "img/user-placeholder.png";
+    document.getElementById("public-profile-name").textContent = profile.fullName;
+
+    const cityEl = document.getElementById("public-profile-city");
+    if (profile.city) {
+        cityEl.textContent = profile.city;
+        cityEl.style.display = "block";
+    } else {
+        cityEl.style.display = "none";
+    }
+
+    document.getElementById("public-profile-description").textContent = profile.description || "Не указано";
+    document.getElementById("public-profile-phone").textContent = profile.phone || "Не указан";
+
+    // Кнопка сообщения
+    const msgBtn = document.getElementById("public-profile-message-btn");
+    if (currentUser && currentUser.userId !== profile.userId) {
+        msgBtn.style.display = "inline-block";
+    } else {
+        msgBtn.style.display = "none";
+    }
+
+    // Статистика
+    document.getElementById("stat-positive").textContent = profile.positiveCount;
+    document.getElementById("stat-neutral").textContent = profile.neutralCount;
+    document.getElementById("stat-negative").textContent = profile.negativeCount;
+    document.getElementById("reviews-count").textContent = profile.totalReviews > 0 ? `(${profile.totalReviews})` : "";
+
+    // Форма отзыва
+    const formSection = document.getElementById("review-form-section");
+    const formTitle = document.getElementById("review-form-title");
+    const submitBtn = document.getElementById("review-submit-btn");
+    const editBtn = document.getElementById("review-edit-btn");
+    const deleteBtn = document.getElementById("review-delete-btn");
+    const cancelBtn = document.getElementById("review-cancel-btn");
+
+    // Очищаем форму по умолчанию
+    clearReviewForm();
+
+    if (currentUser && currentUser.userId !== profile.userId) {
+        formSection.classList.remove("hidden");
+
+        if (profile.myReview) {
+            // У пользователя есть отзыв - показываем кнопку редактирования
+            formTitle.textContent = "Ваш отзыв";
+            submitBtn.textContent = "Сохранить изменения";
+            submitBtn.style.display = "none";
+            editBtn.style.display = "inline-block";
+            deleteBtn.style.display = "inline-block";
+            cancelBtn.style.display = "none";
+
+            // Сохраняем данные для редактирования
+            document.getElementById("review-id").value = profile.myReview.reviewId;
+        } else if (profile.canReview) {
+            // Новый отзыв
+            formTitle.textContent = "Оставить отзыв";
+            submitBtn.textContent = "Отправить отзыв";
+            submitBtn.style.display = "inline-block";
+            editBtn.style.display = "none";
+            deleteBtn.style.display = "none";
+            cancelBtn.style.display = "none";
+        } else {
+            formSection.classList.add("hidden");
+        }
+    } else {
+        formSection.classList.add("hidden");
+    }
+
+    // Список отзывов
+    renderReviews(profile.reviews);
+}
+
+function fillReviewForm() {
+    if (!currentProfileData || !currentProfileData.myReview) return;
+
+    const review = currentProfileData.myReview;
+
+    document.getElementById("review-id").value = review.reviewId;
+    document.getElementById("review-comment").value = review.comment;
+
+    // Выбираем рейтинг
+    const form = document.getElementById("review-form");
+    const ratingInput = form.querySelector(`input[value="${review.rating}"]`);
+    if (ratingInput) ratingInput.checked = true;
+
+    // Показываем кнопки
+    document.getElementById("review-submit-btn").style.display = "inline-block";
+    document.getElementById("review-submit-btn").textContent = "Сохранить изменения";
+    document.getElementById("review-edit-btn").style.display = "none";
+    document.getElementById("review-cancel-btn").style.display = "inline-block";
+
+    // Фокус на комментарий
+    document.getElementById("review-comment").focus();
+}
+
+function clearReviewForm() {
+    const form = document.getElementById("review-form");
+    form.reset();
+    document.getElementById("review-id").value = "";
+    document.getElementById("review-comment").value = "";
+
+    // Сбрасываем кнопки к состоянию по умолчанию
+    if (currentProfileData && currentProfileData.myReview) {
+        document.getElementById("review-submit-btn").style.display = "none";
+        document.getElementById("review-edit-btn").style.display = "inline-block";
+        document.getElementById("review-cancel-btn").style.display = "none";
+        document.getElementById("review-id").value = currentProfileData.myReview.reviewId;
+    } else {
+        document.getElementById("review-submit-btn").style.display = "inline-block";
+        document.getElementById("review-submit-btn").textContent = "Отправить отзыв";
+        document.getElementById("review-cancel-btn").style.display = "none";
+    }
+}
+
+function renderReviews(reviews) {
+    const container = document.getElementById("reviews-list");
+
+    if (!reviews || reviews.length === 0) {
+        container.innerHTML = '<p class="reviews-empty">Пока нет отзывов</p>';
+        return;
+    }
+
+    container.innerHTML = "";
+
+    reviews.forEach(review => {
+        const item = document.createElement("div");
+        item.className = "review-item";
+
+        const photo = review.reviewerPhoto || "img/user-placeholder.png";
+        const ratingEmoji = getRatingEmoji(review.rating);
+        const date = formatReviewDate(review.createdAt);
+
+        item.innerHTML = `
+            <img class="review-avatar clickable-user" src="${photo}" alt="${review.reviewerName}" 
+                 onclick="openPublicProfile(${review.reviewerId})">
+            <div class="review-content">
+                <div class="review-header">
+                    <span class="review-author" onclick="openPublicProfile(${review.reviewerId})">${review.reviewerName}</span>
+                </div>
+                <div class="review-rating-line">
+                    <span class="review-rating-label">Оценка:</span>
+                    <span class="review-rating-emoji">${ratingEmoji}</span>
+                </div>
+                <p class="review-text">${escapeHtml(review.comment)}</p>
+                <div class="review-footer">
+                    <span class="review-date">${date}</span>
+                    ${review.isOwn ? `
+                        <div class="review-actions">
+                            <button class="btn" onclick="fillReviewForm()">Редактировать</button>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        container.appendChild(item);
+    });
+}
+
+function getRatingEmoji(rating) {
+    switch (rating) {
+        case 'positive': return '😊';
+        case 'neutral': return '😐';
+        case 'negative': return '😠';
+        default: return '😐';
+    }
+}
+
+function formatReviewDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+    });
+}
+
+function closePublicProfile() {
+    document.getElementById("public-profile-modal").classList.add("hidden");
+    currentProfileUserId = null;
+    currentProfileData = null;
+}
+
+function messageFromProfile() {
+    if (!currentUser || !currentProfileUserId) return;
+
+    const userId = parseInt(currentProfileUserId, 10);
+    if (isNaN(userId)) {
+        showMessage("Ошибка: некорректный ID пользователя", "error");
+        return;
+    }
+
+    closePublicProfile();
+    startPrivateChat(userId);
+}
+
+async function submitReview(event) {
+    event.preventDefault();
+    if (!currentUser || !currentProfileUserId) return;
+
+    const reviewId = document.getElementById("review-id").value;
+    const ratingInput = document.querySelector('input[name="rating"]:checked');
+    const comment = document.getElementById("review-comment").value.trim();
+
+    if (!ratingInput) {
+        showMessage("Выберите оценку", "error");
+        return;
+    }
+
+    if (!comment) {
+        showMessage("Напишите комментарий", "error");
+        return;
+    }
+
+    const rating = ratingInput.value;
+
+    try {
+        let resp;
+
+        if (reviewId && currentProfileData && currentProfileData.myReview) {
+            // Обновление
+            resp = await fetch(`${API_BASE_URL}/reviews/${reviewId}?userId=${currentUser.userId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rating, comment })
+            });
+        } else {
+            // Создание
+            resp = await fetch(`${API_BASE_URL}/reviews`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    reviewerId: currentUser.userId,
+                    targetUserId: parseInt(currentProfileUserId, 10),
+                    rating,
+                    comment
+                })
+            });
+        }
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка: ${txt}`, "error");
+            return;
+        }
+
+        showMessage(reviewId && currentProfileData?.myReview ? "Отзыв обновлён" : "Отзыв добавлен", "info");
+
+        // Перезагружаем профиль
+        openPublicProfile(currentProfileUserId);
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка сохранения отзыва", "error");
+    }
+}
+
+async function deleteMyReview() {
+    if (!currentUser) return;
+
+    const reviewId = document.getElementById("review-id").value;
+    if (!reviewId) return;
+
+    if (!confirm("Удалить ваш отзыв?")) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/reviews/${reviewId}?userId=${currentUser.userId}`, {
+            method: "DELETE"
+        });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка удаления: ${txt}`, "error");
+            return;
+        }
+
+        showMessage("Отзыв удалён", "info");
+        openPublicProfile(currentProfileUserId);
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка удаления отзыва", "error");
+    }
+}
+
+async function loadMyReviews() {
+    if (!currentUser) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/reviews/profile/${currentUser.userId}?currentUserId=${currentUser.userId}`);
+        if (!resp.ok) return;
+
+        const profile = await resp.json();
+
+        // Статистика
+        document.getElementById("my-stat-positive").textContent = profile.positiveCount;
+        document.getElementById("my-stat-neutral").textContent = profile.neutralCount;
+        document.getElementById("my-stat-negative").textContent = profile.negativeCount;
+
+        // Отзывы
+        const container = document.getElementById("my-reviews-list");
+
+        if (!profile.reviews || profile.reviews.length === 0) {
+            container.innerHTML = '<p class="reviews-empty">У вас пока нет отзывов</p>';
+            return;
+        }
+
+        container.innerHTML = "";
+
+        profile.reviews.forEach(review => {
+            const item = document.createElement("div");
+            item.className = "review-item";
+
+            const photo = review.reviewerPhoto || "img/user-placeholder.png";
+            const ratingEmoji = getRatingEmoji(review.rating);
+            const date = formatReviewDate(review.createdAt);
+
+            item.innerHTML = `
+                <img class="review-avatar clickable-user" src="${photo}" alt="${review.reviewerName}" 
+                     onclick="openPublicProfile(${review.reviewerId})">
+                <div class="review-content">
+                    <div class="review-header">
+                        <span class="review-author" onclick="openPublicProfile(${review.reviewerId})">${review.reviewerName}</span>
+                    </div>
+                    <div class="review-rating-line">
+                        <span class="review-rating-label">Оценка:</span>
+                        <span class="review-rating-emoji">${ratingEmoji}</span>
+                    </div>
+                    <p class="review-text">${escapeHtml(review.comment)}</p>
+                    <div class="review-footer">
+                        <span class="review-date">${date}</span>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(item);
+        });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function editMyReview(reviewId) {
+    // Прокручиваем к форме и фокусируемся
+    const formSection = document.getElementById("review-form-section");
+    formSection.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById("review-comment").focus();
+}

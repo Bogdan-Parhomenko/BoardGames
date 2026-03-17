@@ -1,5 +1,3 @@
--- chat.sql
-
 -- Таблица чатов
 CREATE TABLE chats (
     chat_id       SERIAL PRIMARY KEY,

@@ -20,6 +20,8 @@ public class AppDbContext : DbContext
     public DbSet<ChatParticipant> ChatParticipants => Set<ChatParticipant>();
     public DbSet<Message> Messages => Set<Message>();
 
+    public DbSet<UserReview> UserReviews => Set<UserReview>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -147,6 +149,27 @@ public class AppDbContext : DbContext
                 .WithMany(u => u.SentMessages)
                 .HasForeignKey(m => m.SenderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserReview>(entity =>
+        {
+            entity.HasKey(r => r.ReviewId);
+
+            entity.Property(r => r.Rating)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.HasOne(r => r.Reviewer)
+                .WithMany(u => u.ReviewsWritten)
+                .HasForeignKey(r => r.ReviewerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(r => r.TargetUser)
+                .WithMany(u => u.ReviewsReceived)
+                .HasForeignKey(r => r.TargetUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(r => new { r.ReviewerId, r.TargetUserId }).IsUnique();
         });
     }
 }

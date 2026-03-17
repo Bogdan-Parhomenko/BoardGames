@@ -185,6 +185,30 @@
 
             <h3>Удаление аккаунта</h3>
             <button class="btn" onclick="deleteAccount()">Удалить аккаунт</button>
+
+            <hr class="divider" />
+
+            <!-- Отзывы о пользователе -->
+            <div class="my-reviews-section">
+                <h3>Отзывы обо мне</h3>
+                <div class="my-reviews-stats" id="my-reviews-stats">
+                    <div class="stat-item positive">
+                        <span class="stat-emoji">😊</span>
+                        <span class="stat-count" id="my-stat-positive">0</span>
+                    </div>
+                    <div class="stat-item neutral">
+                        <span class="stat-emoji">😐</span>
+                        <span class="stat-count" id="my-stat-neutral">0</span>
+                    </div>
+                    <div class="stat-item negative">
+                        <span class="stat-emoji">😠</span>
+                        <span class="stat-count" id="my-stat-negative">0</span>
+                    </div>
+                </div>
+                <div id="my-reviews-list" class="reviews-list">
+                    <p class="reviews-empty">Загрузка...</p>
+                </div>
+            </div>
         </section>
 
         <!-- Секция избранных событий -->
@@ -294,6 +318,93 @@
                     <button type="button" class="emoji-picker-close" onclick="closeEmojiPicker()">×</button>
                 </div>
                 <div class="emoji-grid" id="emoji-grid"></div>
+            </div>
+        </div>
+
+        <!-- Модальное окно публичного профиля -->
+        <div id="public-profile-modal" class="modal hidden">
+            <div class="modal-content card public-profile-card">
+                <button type="button" class="modal-close-btn" onclick="closePublicProfile()">&times;</button>
+
+                <div class="public-profile-header">
+                    <img id="public-profile-photo" class="public-profile-photo" src="img/user-placeholder.png" alt="Фото">
+                    <div class="public-profile-info">
+                        <h2 id="public-profile-name"></h2>
+                        <div id="public-profile-city" class="public-profile-city"></div>
+                        <button id="public-profile-message-btn" class="btn primary" onclick="messageFromProfile()">
+                            💬 Написать сообщение
+                        </button>
+                    </div>
+                </div>
+
+                <div class="public-profile-stats" id="public-profile-stats">
+                    <div class="stat-item positive">
+                        <span class="stat-emoji">😊</span>
+                        <span class="stat-count" id="stat-positive">0</span>
+                    </div>
+                    <div class="stat-item neutral">
+                        <span class="stat-emoji">😐</span>
+                        <span class="stat-count" id="stat-neutral">0</span>
+                    </div>
+                    <div class="stat-item negative">
+                        <span class="stat-emoji">😠</span>
+                        <span class="stat-count" id="stat-negative">0</span>
+                    </div>
+                </div>
+
+                <div class="public-profile-section">
+                    <h4>О себе</h4>
+                    <p id="public-profile-description" class="public-profile-text">—</p>
+                </div>
+
+                <div class="public-profile-section">
+                    <h4>Контакты</h4>
+                    <p id="public-profile-phone" class="public-profile-text">—</p>
+                </div>
+
+                <hr class="divider" />
+
+                <!-- Форма отзыва -->
+                <div id="review-form-section" class="review-form-section hidden">
+                    <h4 id="review-form-title">Оставить отзыв</h4>
+                    <form id="review-form" onsubmit="submitReview(event)">
+                        <input type="hidden" id="review-id" value="">
+
+                        <div class="rating-selector">
+                            <label class="rating-option">
+                                <input type="radio" name="rating" value="positive" required>
+                                <span class="rating-emoji" title="Положительный">😊</span>
+                            </label>
+                            <label class="rating-option">
+                                <input type="radio" name="rating" value="neutral">
+                                <span class="rating-emoji" title="Нейтральный">😐</span>
+                            </label>
+                            <label class="rating-option">
+                                <input type="radio" name="rating" value="negative">
+                                <span class="rating-emoji" title="Отрицательный">😠</span>
+                            </label>
+                        </div>
+
+                        <label>
+                            <textarea id="review-comment" placeholder="Напишите ваш отзыв..." required></textarea>
+                        </label>
+
+                        <div class="review-form-actions">
+                            <button type="submit" class="btn primary" id="review-submit-btn">Отправить отзыв</button>
+                            <button type="button" class="btn secondary" id="review-edit-btn" onclick="fillReviewForm()" style="display:none;">Редактировать</button>
+                            <button type="button" class="btn" id="review-delete-btn" onclick="deleteMyReview()" style="display:none;">Удалить</button>
+                            <button type="button" class="btn" id="review-cancel-btn" onclick="clearReviewForm()" style="display:none;">Отмена</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Список отзывов -->
+                <div class="reviews-section">
+                    <h4>Отзывы <span id="reviews-count"></span></h4>
+                    <div id="reviews-list" class="reviews-list">
+                        <p class="reviews-empty">Пока нет отзывов</p>
+                    </div>
+                </div>
             </div>
         </div>
 
