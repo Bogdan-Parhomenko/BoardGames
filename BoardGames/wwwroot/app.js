@@ -1,6 +1,29 @@
 const API_BASE_URL = "https://localhost:7267/api";
 
 let currentUser = null;
+let currentChatId = null;
+let chatRefreshInterval = null;
+
+// ====== Список смайликов ======
+const EMOJI_LIST = [
+    "😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊",
+    "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘",
+    "😗", "😙", "😚", "😋", "😛", "😜", "🤪", "😝",
+    "🤑", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐",
+    "😑", "😶", "😏", "😒", "🙄", "😬", "🤥", "😌",
+    "😔", "😪", "🤤", "😴", "😷", "🤒", "🤕", "🤢",
+    "🤮", "🤧", "🥵", "🥶", "🥴", "😵", "🤯", "🤠",
+    "🥳", "😎", "🤓", "🧐", "😕", "😟", "🙁", "☹️",
+    "😮", "😯", "😲", "😳", "🥺", "😦", "😧", "😨",
+    "😰", "😥", "😢", "😭", "😱", "😖", "😣", "😞",
+    "😓", "😩", "😫", "🥱", "😤", "😡", "😠", "🤬",
+    "👍", "👎", "👌", "✌️", "🤞", "🤟", "🤘", "🤙",
+    "👏", "🙌", "👐", "🤲", "🤝", "🙏", "✍️", "💪",
+    "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍",
+    "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘",
+    "🎮", "🎲", "🎯", "🎪", "🎭", "🃏", "🀄", "♠️",
+    "♣️", "♥️", "♦️", "🏆", "🥇", "🥈", "🥉", "🎖️"
+];
 
 // ====== Вспомогательные функции UI ======
 
@@ -15,17 +38,43 @@ function showMessage(text, type = "info") {
 }
 
 function showSection(name) {
-    const sections = ["auth", "events", "profile", "favorites"];
+    const sections = ["auth", "events", "profile", "favorites", "chats"];
     sections.forEach((s) => {
         const el = document.getElementById(`section-${s}`);
         if (el) el.classList.toggle("hidden", s !== name);
     });
+
+    if (name === "chats") {
+        // Сбрасываем текущий открытый чат
+        currentChatId = null;
+        currentChatData = null;
+
+        // Очищаем область чата (правая панель)
+        const chatArea = document.getElementById("chat-area");
+        if (chatArea) {
+            chatArea.innerHTML = `
+                <div class="chat-placeholder">
+                    <div class="chat-placeholder-icon">💬</div>
+                    <p>Выберите чат для начала общения</p>
+                </div>
+            `;
+        }
+
+        // Снимаем выделение с элементов списка чатов
+        document.querySelectorAll(".chat-item").forEach(el => el.classList.remove("active"));
+
+        loadChats();
+        startChatRefresh();
+    } else {
+        stopChatRefresh();
+    }
 }
 
 function updateNav() {
     const isLoggedIn = !!currentUser;
     document.getElementById("nav-auth").classList.toggle("hidden", isLoggedIn);
     document.getElementById("nav-events").classList.toggle("hidden", !isLoggedIn);
+    document.getElementById("nav-chats").classList.toggle("hidden", !isLoggedIn);
     document.getElementById("nav-profile").classList.toggle("hidden", !isLoggedIn);
     document.getElementById("nav-favorites").classList.toggle("hidden", !isLoggedIn);
     document.getElementById("nav-logout").classList.toggle("hidden", !isLoggedIn);
@@ -36,6 +85,7 @@ function updateNav() {
         loadProfile();
         loadEvents();
         loadFavorites();
+        updateUnreadBadge();
     } else {
         updateUserInfoHeader();
         showSection("auth");
@@ -61,7 +111,9 @@ function loadCurrentUserFromStorage() {
 
 function logout() {
     currentUser = null;
+    currentChatId = null;
     localStorage.removeItem("currentUser");
+    stopChatRefresh();
 
     const eventModal = document.getElementById("event-modal");
     if (eventModal) eventModal.classList.add("hidden");
@@ -303,7 +355,7 @@ async function changeLogin(event) {
             showMessage(`Ошибка смены логина: ${txt}`, "error");
             return;
         }
-        
+
         currentUser.login = newLogin;
         saveCurrentUser(currentUser);
         document.getElementById("profile-login-current").value = newLogin;
@@ -347,11 +399,7 @@ async function uploadPhoto(auto = false) {
 
         document.getElementById("profile-photo").value = photoUrl;
 
-        if (!auto) {
-            showMessage("Фото загружено. Нажмите «Сохранить профиль», чтобы применить.", "info");
-        } else {
-            showMessage("Фото загружено. Нажмите «Сохранить профиль», чтобы применить.", "info");
-        }
+        showMessage("Фото загружено. Нажмите «Сохранить профиль», чтобы применить.", "info");
     } catch (err) {
         console.error(err);
         if (!auto) {
@@ -471,7 +519,7 @@ async function loadEvents() {
                     Организатор: ${ev.creatorName}
                 </div>
                 <div class="event-actions"></div>
-            `; 
+            `;
 
             const actions = card.querySelector(".event-actions");
 
@@ -505,11 +553,12 @@ async function loadEvents() {
                 actions.appendChild(info);
             }
 
-            const favBtn = document.createElement("button");
-            favBtn.className = "btn secondary";
-            favBtn.textContent = "В избранное (шаблон)";
-            favBtn.onclick = () => createFavoriteFromEvent(ev.gameEventId);
-            actions.appendChild(favBtn);
+            // Кнопка чата события
+            const chatBtn = document.createElement("button");
+            chatBtn.className = "btn secondary";
+            chatBtn.textContent = "💬 Чат";
+            chatBtn.onclick = () => openEventChat(ev.gameEventId);
+            actions.appendChild(chatBtn);
 
             const detailsBtn = document.createElement("button");
             detailsBtn.className = "btn";
@@ -517,11 +566,19 @@ async function loadEvents() {
             detailsBtn.onclick = () => openEventDetails(ev.gameEventId);
             actions.appendChild(detailsBtn);
 
-            const deleteBtn = document.createElement("button");
-            deleteBtn.className = "btn";
-            deleteBtn.textContent = "Удалить";
-            deleteBtn.onclick = () => deleteEvent(ev.gameEventId);
-            actions.appendChild(deleteBtn);
+            if (ev.creatorId === currentUser.userId) {
+                const favBtn = document.createElement("button");
+                favBtn.className = "btn secondary";
+                favBtn.textContent = "В избранное";
+                favBtn.onclick = () => createFavoriteFromEvent(ev.gameEventId);
+                actions.appendChild(favBtn);
+
+                const deleteBtn = document.createElement("button");
+                deleteBtn.className = "btn";
+                deleteBtn.textContent = "Удалить";
+                deleteBtn.onclick = () => deleteEvent(ev.gameEventId);
+                actions.appendChild(deleteBtn);
+            }
 
             container.appendChild(card);
         });
@@ -655,8 +712,11 @@ async function submitEventForm(event) {
 
 async function deleteEvent(id) {
     if (!confirm("Удалить это событие?")) return;
+    if (!currentUser) return;
     try {
-        const resp = await fetch(`${API_BASE_URL}/events/${id}`, { method: "DELETE" });
+        const resp = await fetch(`${API_BASE_URL}/events/${id}?userId=${currentUser.userId}`, {
+            method: "DELETE"
+        });
         if (!resp.ok) {
             const txt = await resp.text();
             showMessage(`Ошибка удаления события: ${txt}`, "error");
@@ -702,9 +762,9 @@ async function openEventDetails(eventId) {
             <p><strong>Категории:</strong> ${categoriesText}</p>
             <p><strong>Описание:</strong><br/>${ev.description ?? "—"}</p>
             <div class="event-organizer-block">
-                <img class="event-organizer-avatar" src="${creatorPhoto}" alt="${ev.creatorName}">
+                <img class="event-organizer-avatar clickable-user" src="${creatorPhoto}" alt="${ev.creatorName}" onclick="startPrivateChat(${ev.creatorId})" title="Написать сообщение">
                 <div class="event-organizer-info">
-                    <div class="event-organizer-name">${ev.creatorName}</div>
+                    <div class="event-organizer-name clickable-user" onclick="startPrivateChat(${ev.creatorId})" title="Написать сообщение">${ev.creatorName}</div>
                     <div class="event-organizer-phone">
                         ${ev.creatorPhone || "телефон не указан"}
                     </div>
@@ -720,15 +780,15 @@ async function openEventDetails(eventId) {
                 const commentText = p.comment ? `Комментарий: ${p.comment}` : "Комментарий не указан";
 
                 html += `
-            <div class="participant-item">
-                <img class="participant-avatar" src="${photo}" alt="${p.fullName}">
-                <div class="participant-info">
-                    <div class="participant-name">${p.fullName}</div>
-                    <div class="participant-phone">${phoneText}</div>
-                    <div class="participant-comment">${commentText}</div>
-                </div>
-            </div>
-        `;
+                    <div class="participant-item">
+                        <img class="participant-avatar clickable-user" src="${photo}" alt="${p.fullName}" onclick="startPrivateChat(${p.userId})" title="Написать сообщение">
+                        <div class="participant-info">
+                            <div class="participant-name clickable-user" onclick="startPrivateChat(${p.userId})" title="Написать сообщение">${p.fullName}</div>
+                            <div class="participant-phone">${phoneText}</div>
+                            <div class="participant-comment">${commentText}</div>
+                        </div>
+                    </div>
+                `;
             });
             html += `</div>`;
         } else {
@@ -775,6 +835,7 @@ async function joinEvent(eventId) {
         }
 
         showMessage("Вы записались на событие", "info");
+        loadEvents();
     } catch (err) {
         console.error(err);
         showMessage("Ошибка соединения при записи на событие", "error");
@@ -792,6 +853,7 @@ async function leaveEvent(eventId) {
             return;
         }
         showMessage("Запись на событие отменена", "info");
+        loadEvents();
     } catch (err) {
         console.error(err);
         showMessage("Ошибка соединения при отмене записи", "error");
@@ -952,6 +1014,539 @@ async function createFavoriteFromEvent(eventId) {
     }
 }
 
+// ====== ЧАТЫ ======
+
+let currentChatData = null; // Добавляем переменную для хранения данных текущего чата
+
+async function loadChats() {
+    if (!currentUser) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/user/${currentUser.userId}`);
+        if (!resp.ok) throw new Error("Ошибка загрузки чатов");
+
+        const chats = await resp.json();
+        const container = document.getElementById("chats-list");
+
+        if (!chats || chats.length === 0) {
+            container.innerHTML = '<p class="chats-empty">У вас пока нет сообщений</p>';
+            return;
+        }
+
+        container.innerHTML = "";
+
+        chats.forEach(chat => {
+            const item = document.createElement("div");
+            item.className = "chat-item" + (currentChatId === chat.chatId ? " active" : "");
+            item.onclick = () => openChat(chat.chatId);
+
+            const photo = chat.chatPhoto || "img/user-placeholder.png";
+            const lastMsg = chat.lastMessage;
+            const previewText = lastMsg
+                ? (lastMsg.isOwn ? "Вы: " : "") + truncateText(lastMsg.content, 30)
+                : "Нет сообщений";
+            const timeText = lastMsg ? formatChatTime(lastMsg.sentAt) : "";
+
+            item.innerHTML = `
+                <img class="chat-item-avatar" src="${photo}" alt="${chat.chatName}">
+                <div class="chat-item-info">
+                    <div class="chat-item-header">
+                        <span class="chat-item-name">
+                            ${chat.chatName}
+                            ${chat.chatType === 'event' ? '<span class="chat-item-event-badge">событие</span>' : ''}
+                        </span>
+                        <span class="chat-item-time">${timeText}</span>
+                    </div>
+                    <div class="chat-item-preview">${previewText}</div>
+                </div>
+                ${chat.unreadCount > 0 ? `<span class="chat-item-badge">${chat.unreadCount}</span>` : ''}
+            `;
+
+            container.appendChild(item);
+        });
+
+        updateUnreadBadge();
+    } catch (err) {
+        console.error(err);
+        document.getElementById("chats-list").innerHTML = '<p class="chats-empty">Ошибка загрузки</p>';
+    }
+}
+
+async function openChat(chatId, forceFullRender = false) {
+    if (!currentUser) return;
+
+    const isNewChat = currentChatId !== chatId;
+    currentChatId = chatId;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/${chatId}/messages?userId=${currentUser.userId}`);
+        if (!resp.ok) throw new Error("Ошибка загрузки сообщений");
+
+        const data = await resp.json();
+        currentChatData = data.chat;
+
+        if (isNewChat || forceFullRender) {
+            // Полная перерисовка только при открытии нового чата
+            renderChatArea(data.chat, data.messages);
+        } else {
+            // Обновляем только сообщения, сохраняя поле ввода
+            updateMessagesOnly(data.messages);
+        }
+
+        // Обновить список чатов (для badge)
+        loadChats();
+
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка загрузки чата", "error");
+    }
+}
+
+function renderChatArea(chat, messages) {
+    const area = document.getElementById("chat-area");
+    const photo = chat.chatPhoto || "img/user-placeholder.png";
+    const participantsText = chat.chatType === 'event'
+        ? `${chat.participants.length} участников`
+        : "Личный чат";
+
+    area.innerHTML = `
+        <div class="chat-header">
+            <button class="chat-header-back" onclick="closeChatArea()">←</button>
+            <img class="chat-header-avatar" src="${photo}" alt="${chat.chatName}">
+            <div class="chat-header-info">
+                <div class="chat-header-name">${chat.chatName}</div>
+                <div class="chat-header-status">${participantsText}</div>
+            </div>
+            <div class="chat-header-actions">
+                <button class="btn" onclick="deleteChat(${chat.chatId})">Удалить чат</button>
+            </div>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-area">
+            <form class="chat-input-form" onsubmit="sendMessage(event)">
+                <div class="chat-input-wrapper">
+                    <button type="button" class="emoji-btn" onclick="toggleEmojiPicker(event)">😊</button>
+                    <textarea class="chat-input" id="chat-input" placeholder="Введите сообщение..." rows="1" onkeydown="handleChatInputKeydown(event)"></textarea>
+                </div>
+                <button type="submit" class="chat-send-btn">➤</button>
+            </form>
+        </div>
+    `;
+
+    renderMessages(messages);
+    scrollToBottom();
+}
+
+function updateMessagesOnly(messages) {
+    const container = document.getElementById("chat-messages");
+    if (!container) return;
+
+    // Проверяем, нужно ли обновлять (сравниваем количество сообщений)
+    const currentMessageCount = container.querySelectorAll(".message-item").length;
+    const newMessageCount = messages.length;
+
+    // Если количество сообщений изменилось, обновляем
+    if (currentMessageCount !== newMessageCount) {
+        const wasAtBottom = isScrolledToBottom(container);
+        renderMessages(messages);
+
+        // Прокручиваем вниз только если пользователь был внизу
+        if (wasAtBottom) {
+            scrollToBottom();
+        }
+    }
+}
+
+// Проверка, находится ли скролл внизу
+function isScrolledToBottom(container) {
+    const threshold = 50; // небольшой допуск в пикселях
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+}
+
+function renderMessages(messages) {
+    const container = document.getElementById("chat-messages");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    let lastDate = null;
+
+    messages.forEach(msg => {
+        const msgDate = new Date(msg.sentAt).toLocaleDateString("ru-RU");
+
+        if (msgDate !== lastDate) {
+            const divider = document.createElement("div");
+            divider.className = "messages-date-divider";
+            divider.innerHTML = `<span>${formatMessageDate(msg.sentAt)}</span>`;
+            container.appendChild(divider);
+            lastDate = msgDate;
+        }
+
+        const item = document.createElement("div");
+        item.className = "message-item" + (msg.isOwn ? " own" : "");
+        item.dataset.messageId = msg.messageId; // Добавляем id для сравнения
+
+        const photo = msg.senderPhoto || "img/user-placeholder.png";
+        const time = formatMessageTime(msg.sentAt);
+
+        item.innerHTML = `
+            <img class="message-avatar" src="${photo}" alt="${msg.senderName}">
+            <div class="message-bubble">
+                <div class="message-sender">${msg.senderName}</div>
+                <div class="message-content ${msg.isDeleted ? 'message-deleted' : ''}">${msg.isDeleted ? msg.content : escapeHtml(msg.content)}</div>
+                <div class="message-footer">
+                    <span class="message-time">${time}</span>
+                    ${msg.isOwn && !msg.isDeleted ? `<button class="message-delete-btn" onclick="deleteMessage(${msg.messageId})">удалить</button>` : ''}
+                </div>
+            </div>
+        `;
+
+        container.appendChild(item);
+    });
+}
+
+function scrollToBottom() {
+    const container = document.getElementById("chat-messages");
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
+}
+
+async function sendMessage(event) {
+    event.preventDefault();
+    if (!currentUser || !currentChatId) return;
+
+    const input = document.getElementById("chat-input");
+    const content = input.value.trim();
+
+    if (!content) return;
+
+    // Сохраняем и очищаем ввод сразу для лучшего UX
+    const messageText = content;
+    input.value = "";
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/${currentChatId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                senderId: currentUser.userId,
+                content: messageText
+            })
+        });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка отправки: ${txt}`, "error");
+            // Восстанавливаем текст при ошибке
+            input.value = messageText;
+            return;
+        }
+
+        // Обновляем только сообщения
+        openChat(currentChatId);
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка отправки сообщения", "error");
+        // Восстанавливаем текст при ошибке
+        input.value = messageText;
+    }
+}
+
+async function deleteMessage(messageId) {
+    if (!currentUser) return;
+    if (!confirm("Удалить это сообщение?")) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/messages/${messageId}?userId=${currentUser.userId}`, {
+            method: "DELETE"
+        });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка удаления: ${txt}`, "error");
+            return;
+        }
+
+        // Обновляем только сообщения
+        openChat(currentChatId);
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка удаления сообщения", "error");
+    }
+}
+
+async function deleteChat(chatId) {
+    if (!currentUser) return;
+    if (!confirm("Удалить этот чат у себя?")) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/${chatId}?userId=${currentUser.userId}`, {
+            method: "DELETE"
+        });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка удаления чата: ${txt}`, "error");
+            return;
+        }
+
+        currentChatId = null;
+        currentChatData = null;
+        document.getElementById("chat-area").innerHTML = `
+            <div class="chat-placeholder">
+                <div class="chat-placeholder-icon">💬</div>
+                <p>Выберите чат для начала общения</p>
+            </div>
+        `;
+        loadChats();
+        showMessage("Чат удалён", "info");
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка удаления чата", "error");
+    }
+}
+
+function closeChatArea() {
+    currentChatId = null;
+    currentChatData = null;
+    document.getElementById("chat-area").innerHTML = `
+        <div class="chat-placeholder">
+            <div class="chat-placeholder-icon">💬</div>
+            <p>Выберите чат для начала общения</p>
+        </div>
+    `;
+    document.querySelectorAll(".chat-item").forEach(el => el.classList.remove("active"));
+}
+
+// Начать личный чат
+async function startPrivateChat(otherUserId) {
+    if (!currentUser) return;
+    if (otherUserId === currentUser.userId) {
+        showMessage("Вы не можете написать самому себе", "error");
+        return;
+    }
+
+    // Закрыть модалки
+    closeEventDetails();
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/private`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userId: currentUser.userId,
+                otherUserId: otherUserId
+            })
+        });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка создания чата: ${txt}`, "error");
+            return;
+        }
+
+        const chat = await resp.json();
+        showSection("chats");
+        setTimeout(() => openChat(chat.chatId), 100);
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка создания чата", "error");
+    }
+}
+
+// Открыть чат события
+async function openEventChat(eventId) {
+    if (!currentUser) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/event`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userId: currentUser.userId,
+                eventId: eventId
+            })
+        });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка открытия чата события: ${txt}`, "error");
+            return;
+        }
+
+        const chat = await resp.json();
+        showSection("chats");
+        setTimeout(() => openChat(chat.chatId), 100);
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка открытия чата события", "error");
+    }
+}
+
+// ====== Emoji Picker ======
+
+function initEmojiPicker() {
+    const grid = document.getElementById("emoji-grid");
+    if (!grid) return;
+
+    grid.innerHTML = "";
+    EMOJI_LIST.forEach(emoji => {
+        const item = document.createElement("span");
+        item.className = "emoji-item";
+        item.textContent = emoji;
+        item.onclick = () => insertEmoji(emoji);
+        grid.appendChild(item);
+    });
+}
+
+function toggleEmojiPicker(event) {
+    event.preventDefault();
+    const picker = document.getElementById("emoji-picker");
+
+    if (picker.classList.contains("hidden")) {
+        // Позиционируем пикер
+        const btn = event.target;
+        const rect = btn.getBoundingClientRect();
+        picker.style.left = rect.left + "px";
+        picker.style.bottom = (window.innerHeight - rect.top + 10) + "px";
+        picker.classList.remove("hidden");
+        initEmojiPicker();
+    } else {
+        picker.classList.add("hidden");
+    }
+}
+
+function closeEmojiPicker() {
+    document.getElementById("emoji-picker").classList.add("hidden");
+}
+
+function insertEmoji(emoji) {
+    const input = document.getElementById("chat-input");
+    if (input) {
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        input.value = text.substring(0, start) + emoji + text.substring(end);
+        input.selectionStart = input.selectionEnd = start + emoji.length;
+        input.focus();
+    }
+    closeEmojiPicker();
+}
+
+// Обработка Enter для отправки
+function handleChatInputKeydown(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage(event);
+    }
+}
+
+// ====== Вспомогательные функции ======
+
+function truncateText(text, maxLen) {
+    if (!text) return "";
+    if (text.length <= maxLen) return text;
+    return text.substring(0, maxLen) + "...";
+}
+
+function formatChatTime(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    if (diff < oneDay && date.getDate() === now.getDate()) {
+        return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    } else if (diff < 7 * oneDay) {
+        return date.toLocaleDateString("ru-RU", { weekday: "short" });
+    } else {
+        return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    }
+}
+
+function formatMessageTime(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatMessageDate(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    if (diff < oneDay && date.getDate() === now.getDate()) {
+        return "Сегодня";
+    } else if (diff < 2 * oneDay && date.getDate() === now.getDate() - 1) {
+        return "Вчера";
+    } else {
+        return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function updateUnreadBadge() {
+    if (!currentUser) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/user/${currentUser.userId}`);
+        if (!resp.ok) return;
+
+        const chats = await resp.json();
+        const totalUnread = chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0);
+
+        const badge = document.getElementById("nav-chats-badge");
+        if (totalUnread > 0) {
+            badge.textContent = totalUnread > 99 ? "99+" : totalUnread;
+            badge.classList.remove("hidden");
+        } else {
+            badge.classList.add("hidden");
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function startChatRefresh() {
+    stopChatRefresh();
+    chatRefreshInterval = setInterval(() => {
+        if (currentChatId) {
+            // Передаём false, чтобы не делать полную перерисовку
+            refreshCurrentChat();
+        } else {
+            loadChats();
+        }
+    }, 5000);
+}
+
+async function refreshCurrentChat() {
+    if (!currentUser || !currentChatId) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/chats/${currentChatId}/messages?userId=${currentUser.userId}`);
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        updateMessagesOnly(data.messages);
+        loadChats(); // обновляем список чатов для badge
+    } catch (err) {
+        console.error("Ошибка обновления чата:", err);
+    }
+}
+
+function stopChatRefresh() {
+    if (chatRefreshInterval) {
+        clearInterval(chatRefreshInterval);
+        chatRefreshInterval = null;
+    }
+}
+
 // ====== Инициализация ======
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -961,4 +1556,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (fileInput) {
         fileInput.addEventListener("change", handlePhotoFileChange);
     }
+
+    // Закрывать emoji picker при клике вне его
+    document.addEventListener("click", (e) => {
+        const picker = document.getElementById("emoji-picker");
+        const emojiBtn = e.target.closest(".emoji-btn");
+        if (!picker.contains(e.target) && !emojiBtn) {
+            picker.classList.add("hidden");
+        }
+    });
+
+    // Периодическое обновление badge непрочитанных
+    setInterval(updateUnreadBadge, 30000);
 });

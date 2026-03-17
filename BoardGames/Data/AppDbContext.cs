@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace BoardGamesApi.Data;
 
@@ -14,6 +15,10 @@ public class AppDbContext : DbContext
     public DbSet<GameEvent> GameEvents => Set<GameEvent>();
     public DbSet<UserEventParticipation> UserEventParticipations => Set<UserEventParticipation>();
     public DbSet<FavoriteEvent> FavoriteEvents => Set<FavoriteEvent>();
+
+    public DbSet<Chat> Chats => Set<Chat>();
+    public DbSet<ChatParticipant> ChatParticipants => Set<ChatParticipant>();
+    public DbSet<Message> Messages => Set<Message>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,6 +100,52 @@ public class AppDbContext : DbContext
             entity.HasOne(f => f.Creator)
                 .WithMany(u => u.FavoriteEvents)
                 .HasForeignKey(f => f.CreatorId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Chat>(entity =>
+        {
+            entity.HasKey(c => c.ChatId);
+
+            entity.Property(c => c.ChatType)
+                .HasConversion(
+                    v => v.ToString(),
+                    v => (ChatType)Enum.Parse(typeof(ChatType), v))
+                .HasMaxLength(7);
+
+            entity.HasOne(c => c.Event)
+                .WithMany()
+                .HasForeignKey(c => c.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChatParticipant>(entity =>
+        {
+            entity.HasKey(cp => new { cp.ChatId, cp.UserId });
+
+            entity.HasOne(cp => cp.Chat)
+                .WithMany(c => c.Participants)
+                .HasForeignKey(cp => cp.ChatId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(cp => cp.User)
+                .WithMany(u => u.ChatParticipants)
+                .HasForeignKey(cp => cp.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Message>(entity =>
+        {
+            entity.HasKey(m => m.MessageId);
+
+            entity.HasOne(m => m.Chat)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ChatId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(m => m.Sender)
+                .WithMany(u => u.SentMessages)
+                .HasForeignKey(m => m.SenderId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

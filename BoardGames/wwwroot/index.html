@@ -17,6 +17,7 @@
         <nav class="nav">
             <button id="nav-auth" class="nav-btn" onclick="showSection('auth')">Вход / Регистрация</button>
             <button id="nav-events" class="nav-btn hidden" onclick="showSection('events')">События</button>
+            <button id="nav-chats" class="nav-btn hidden" onclick="showSection('chats')">Сообщения <span id="nav-chats-badge" class="nav-badge hidden">0</span></button>
             <button id="nav-favorites" class="nav-btn hidden" onclick="showSection('favorites')">Избранное</button>
             <button id="nav-profile" class="nav-btn hidden" onclick="showSection('profile')">Профиль</button>
             <button id="nav-logout" class="nav-btn hidden" onclick="logout()">Выход</button>
@@ -74,6 +75,29 @@
             </div>
 
             <div id="events-list" class="cards-list">
+            </div>
+        </section>
+
+        <!-- Секция чатов -->
+        <section id="section-chats" class="hidden">
+            <div class="chats-container">
+                <!-- Список чатов -->
+                <div class="chats-sidebar" id="chats-sidebar">
+                    <div class="chats-sidebar-header">
+                        <h3>Сообщения</h3>
+                    </div>
+                    <div class="chats-list" id="chats-list">
+                        <p class="chats-empty">Загрузка...</p>
+                    </div>
+                </div>
+
+                <!-- Область чата -->
+                <div class="chat-area" id="chat-area">
+                    <div class="chat-placeholder">
+                        <div class="chat-placeholder-icon">💬</div>
+                        <p>Выберите чат для начала общения</p>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -259,6 +283,17 @@
                 <div class="modal-actions">
                     <button type="button" class="btn" onclick="closeEventDetails()">Закрыть</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно выбора смайликов -->
+        <div id="emoji-picker" class="emoji-picker hidden">
+            <div class="emoji-picker-content">
+                <div class="emoji-picker-header">
+                    <span>Выберите смайлик</span>
+                    <button type="button" class="emoji-picker-close" onclick="closeEmojiPicker()">×</button>
+                </div>
+                <div class="emoji-grid" id="emoji-grid"></div>
             </div>
         </div>
 

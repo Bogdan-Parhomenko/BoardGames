@@ -187,10 +187,13 @@ public class EventsController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> DeleteEvent(int id)
+    public async Task<IActionResult> DeleteEvent(int id, [FromQuery] int userId)
     {
         var ev = await _db.GameEvents.FindAsync(id);
         if (ev == null) return NotFound();
+
+        if (ev.CreatorId != userId)
+            return BadRequest("Только создатель может удалить событие");
 
         _db.GameEvents.Remove(ev);
         await _db.SaveChangesAsync();
@@ -281,6 +284,7 @@ public class EventsController : ControllerBase
             DurationMinutes = ev.DurationMinutes,
             Address = ev.Address,
             MaxPlayers = ev.MaxPlayers,
+            CreatorId = ev.CreatorId,
             CreatorName = ev.Creator.FullName,
             CreatorPhone = ev.Creator.Phone,
             CreatorPhoto = ev.Creator.Photo,

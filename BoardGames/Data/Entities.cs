@@ -14,6 +14,9 @@ public class User
     public ICollection<GameEvent> CreatedEvents { get; set; } = new List<GameEvent>();
     public ICollection<UserEventParticipation> EventParticipations { get; set; } = new List<UserEventParticipation>();
     public ICollection<FavoriteEvent> FavoriteEvents { get; set; } = new List<FavoriteEvent>();
+
+    public ICollection<ChatParticipant> ChatParticipants { get; set; } = new List<ChatParticipant>();
+    public ICollection<Message> SentMessages { get; set; } = new List<Message>();
 }
 
 public class GameCategory
