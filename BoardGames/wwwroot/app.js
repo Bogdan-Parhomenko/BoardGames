@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://localhost:7267/api";
+const API_BASE_URL = "/api";
 
 let currentUser = null;
 let currentChatId = null;
@@ -88,6 +88,7 @@ function updateNav() {
         loadEvents();
         loadFavorites();
         updateUnreadBadge();
+        loadFilterCategories();
     } else {
         updateUserInfoHeader();
         showSection("auth");
@@ -478,7 +479,8 @@ async function deleteAccount() {
 async function loadEvents() {
     if (!currentUser) return;
     try {
-        const resp = await fetch(`${API_BASE_URL}/events?userId=${currentUser.userId}`);
+        const queryString = buildFilterQueryString();
+        const resp = await fetch(`${API_BASE_URL}/events?${queryString}`);
         if (!resp.ok) throw new Error("Ошибка загрузки событий");
 
         const events = await resp.json();
@@ -486,7 +488,7 @@ async function loadEvents() {
         container.innerHTML = "";
 
         if (!events || events.length === 0) {
-            container.innerHTML = "<p>Событий пока нет.</p>";
+            container.innerHTML = "<p>Событий не найдено.</p>";
             return;
         }
 
@@ -496,16 +498,10 @@ async function loadEvents() {
 
             const date = ev.eventDate;
             const time = ev.eventTime ? ev.eventTime.substring(0, 5) : "";
-
             const statusText = ev.isCompleted ? "Событие завершено" : "Событие запланировано";
-
             const categoriesText = ev.categoryNames && ev.categoryNames.length
-                ? ev.categoryNames.join(", ")
-                : "не указаны";
-
-            const durationText = ev.durationMinutes
-                ? `${ev.durationMinutes} мин.`
-                : "не указана";
+                ? ev.categoryNames.join(", ") : "не указаны";
+            const durationText = ev.durationMinutes ? `${ev.durationMinutes} мин.` : "не указана";
 
             card.innerHTML = `
                 <div class="event-title">${ev.title}</div>
@@ -529,7 +525,6 @@ async function loadEvents() {
             const actions = card.querySelector(".event-actions");
 
             if (!ev.isCompleted) {
-
                 if (ev.isUserJoined) {
                     const leaveBtn = document.createElement("button");
                     leaveBtn.className = "btn";
@@ -558,7 +553,6 @@ async function loadEvents() {
                 actions.appendChild(info);
             }
 
-            // Кнопка чата события
             const chatBtn = document.createElement("button");
             chatBtn.className = "btn secondary";
             chatBtn.textContent = "💬 Чат";
@@ -1993,3 +1987,181 @@ function editMyReview(reviewId) {
     formSection.scrollIntoView({ behavior: 'smooth' });
     document.getElementById("review-comment").focus();
 }
+
+// ====== ФИЛЬТРАЦИЯ СОБЫТИЙ ======
+
+let allCategories = [];
+let selectedFilterCategories = [];
+
+async function loadFilterCategories() {
+    try {
+        const resp = await fetch(`${API_BASE_URL}/categories`);
+        if (!resp.ok) return;
+        allCategories = await resp.json();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function showCategoryDropdown() {
+    const input = document.getElementById("filter-category-input");
+    const filter = input.value.trim().toLowerCase();
+    renderCategoryDropdown(filter);
+    document.getElementById("filter-category-dropdown").classList.remove("hidden");
+}
+
+function filterCategoryDropdown() {
+    const input = document.getElementById("filter-category-input").value.trim().toLowerCase();
+    renderCategoryDropdown(input);
+    document.getElementById("filter-category-dropdown").classList.remove("hidden");
+}
+
+function renderCategoryDropdown(filter) {
+    const dropdown = document.getElementById("filter-category-dropdown");
+    dropdown.innerHTML = "";
+
+    const filtered = allCategories.filter(c =>
+        c.name.toLowerCase().includes(filter)
+    );
+
+    if (filtered.length === 0) {
+        dropdown.innerHTML = '<div class="filter-category-option disabled">Ничего не найдено</div>';
+        return;
+    }
+
+    filtered.forEach(cat => {
+        const isSelected = selectedFilterCategories.some(s => s.id === cat.id);
+        const opt = document.createElement("div");
+        opt.className = "filter-category-option" + (isSelected ? " disabled" : "");
+        opt.textContent = cat.name + (isSelected ? " ✓" : "");
+
+        if (!isSelected) {
+            opt.onclick = (e) => {
+                e.stopPropagation();
+                selectFilterCategory(cat);
+            };
+        }
+
+        dropdown.appendChild(opt);
+    });
+}
+
+function selectFilterCategory(cat) {
+    if (selectedFilterCategories.some(c => c.id === cat.id)) return;
+    selectedFilterCategories.push(cat);
+    document.getElementById("filter-category-input").value = "";
+    renderSelectedCategories();
+    // Обновляем dropdown чтобы показать галочку
+    renderCategoryDropdown("");
+    document.getElementById("filter-category-dropdown").classList.add("hidden");
+}
+
+function removeFilterCategory(catId) {
+    selectedFilterCategories = selectedFilterCategories.filter(c => c.id !== catId);
+    renderSelectedCategories();
+    updateFilterActiveCount();
+}
+
+function renderSelectedCategories() {
+    const container = document.getElementById("filter-selected-categories");
+    container.innerHTML = "";
+
+    selectedFilterCategories.forEach(cat => {
+        const tag = document.createElement("span");
+        tag.className = "filter-category-tag";
+        tag.innerHTML = `${cat.name} <span class="filter-category-tag-remove" onclick="removeFilterCategory(${cat.id})">×</span>`;
+        container.appendChild(tag);
+    });
+}
+
+function applyFilters() {
+    updateFilterActiveCount();
+    loadEvents();
+}
+
+function resetFilters() {
+    selectedFilterCategories = [];
+    document.getElementById("filter-category-input").value = "";
+    document.getElementById("filter-date-from").value = "";
+    document.getElementById("filter-date-to").value = "";
+    document.getElementById("filter-players-to").value = "";
+    renderSelectedCategories();
+    updateFilterActiveCount();
+    loadEvents();
+}
+
+function updateFilterActiveCount() {
+    let count = 0;
+    if (selectedFilterCategories.length > 0) count++;
+    if (document.getElementById("filter-date-from").value) count++;
+    if (document.getElementById("filter-date-to").value) count++;
+    if (document.getElementById("filter-players-to").value) count++;
+
+    const badge = document.getElementById("filter-active-count");
+    if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove("hidden");
+    } else {
+        badge.classList.add("hidden");
+    }
+}
+
+function buildFilterQueryString() {
+    const params = new URLSearchParams();
+
+    if (currentUser) {
+        params.set("userId", currentUser.userId);
+    }
+
+    if (selectedFilterCategories.length > 0) {
+        params.set("categories", selectedFilterCategories.map(c => c.name).join(","));
+    }
+
+    const dateFrom = document.getElementById("filter-date-from")?.value;
+    if (dateFrom) params.set("dateFrom", dateFrom);
+
+    const dateTo = document.getElementById("filter-date-to")?.value;
+    if (dateTo) params.set("dateTo", dateTo);
+
+    const playersTo = document.getElementById("filter-players-to")?.value;
+    if (playersTo) params.set("maxPlayersTo", playersTo);
+
+    return params.toString();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    loadCurrentUserFromStorage();
+
+    const fileInput = document.getElementById("profile-photo-file");
+    if (fileInput) {
+        fileInput.addEventListener("change", handlePhotoFileChange);
+    }
+
+    // Закрывать emoji picker
+    document.addEventListener("click", (e) => {
+        const picker = document.getElementById("emoji-picker");
+        const emojiBtn = e.target.closest(".emoji-btn");
+        if (!picker.contains(e.target) && !emojiBtn) {
+            picker.classList.add("hidden");
+        }
+    });
+
+    // Закрывать dropdown категорий при клике вне
+    document.addEventListener("click", (e) => {
+        const wrapper = document.querySelector(".filter-categories-wrapper");
+        const dropdown = document.getElementById("filter-category-dropdown");
+        if (wrapper && dropdown && !wrapper.contains(e.target)) {
+            dropdown.classList.add("hidden");
+        }
+    });
+
+    setInterval(updateUnreadBadge, 30000);
+});
+
+document.addEventListener("click", (e) => {
+    const wrapper = document.querySelector(".filter-categories-wrapper");
+    const dropdown = document.getElementById("filter-category-dropdown");
+    if (wrapper && dropdown && !wrapper.contains(e.target)) {
+        dropdown.classList.add("hidden");
+    }
+});

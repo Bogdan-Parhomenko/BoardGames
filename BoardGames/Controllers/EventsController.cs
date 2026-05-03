@@ -2,6 +2,7 @@
 using BoardGamesApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace BoardGamesApi.Controllers;
 
@@ -23,11 +24,62 @@ public class EventsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<GameEventDto>>> GetEvents([FromQuery] int? userId)
+    public async Task<ActionResult<IEnumerable<GameEventDto>>> GetEvents(
+    [FromQuery] int? userId,
+    [FromQuery] string? categories,
+    [FromQuery] DateOnly? dateFrom,
+    [FromQuery] DateOnly? dateTo,
+    [FromQuery] int? maxPlayersFrom,
+    [FromQuery] int? maxPlayersTo)
     {
         var now = DateTime.Now;
-        var events = await _db.GameEvents
+
+        var query = _db.GameEvents
             .AsNoTracking()
+            .Include(e => e.Creator)
+            .Include(e => e.Categories)
+            .Include(e => e.Participants)
+            .AsQueryable();
+
+        // Фильтр по категориям
+        if (!string.IsNullOrWhiteSpace(categories))
+        {
+            var categoryList = categories
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(c => c.ToLower())
+                .ToList();
+
+            if (categoryList.Any())
+            {
+                query = query.Where(e => e.Categories.Any(c => categoryList.Contains(c.Name.ToLower())));
+            }
+        }
+
+        // Фильтр по дате (от)
+        if (dateFrom.HasValue)
+        {
+            query = query.Where(e => e.EventDate >= dateFrom.Value);
+        }
+
+        // Фильтр по дате (до)
+        if (dateTo.HasValue)
+        {
+            query = query.Where(e => e.EventDate <= dateTo.Value);
+        }
+
+        // Фильтр по количеству игроков (от)
+        if (maxPlayersFrom.HasValue)
+        {
+            query = query.Where(e => e.MaxPlayers >= maxPlayersFrom.Value);
+        }
+
+        // Фильтр по количеству игроков (до)
+        if (maxPlayersTo.HasValue)
+        {
+            query = query.Where(e => e.MaxPlayers <= maxPlayersTo.Value);
+        }
+
+        var events = await query
             .Select(e => new GameEventDto
             {
                 GameEventId = e.EventId,

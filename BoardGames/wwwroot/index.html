@@ -74,6 +74,47 @@
                 <button class="btn primary" onclick="openEventForm()">Создать событие</button>
             </div>
 
+            <!-- Блок фильтрации -->
+            <details class="filter-details" id="filter-details">
+                <summary class="filter-summary">
+                    <span>🔍 Фильтры</span>
+                    <span class="filter-active-count hidden" id="filter-active-count"></span>
+                </summary>
+                <div class="filter-panel card">
+                    <div class="filter-row">
+                        <label class="filter-field filter-field-wide">
+                            Категории
+                            <div class="filter-categories-wrapper">
+                                <input type="text" id="filter-category-input" placeholder="Начните вводить название..."
+                                       oninput="filterCategoryDropdown()" onfocus="showCategoryDropdown()" autocomplete="off">
+                                <div class="filter-category-dropdown hidden" id="filter-category-dropdown"></div>
+                            </div>
+                            <div class="filter-selected-categories" id="filter-selected-categories"></div>
+                        </label>
+                    </div>
+
+                    <div class="filter-row">
+                        <label class="filter-field">
+                            Дата от
+                            <input type="date" id="filter-date-from">
+                        </label>
+                        <label class="filter-field">
+                            Дата до
+                            <input type="date" id="filter-date-to">
+                        </label>
+                        <label class="filter-field">
+                            Макс. игроков (до)
+                            <input type="number" id="filter-players-to" min="1" placeholder="Не более...">
+                        </label>
+                    </div>
+
+                    <div class="filter-actions">
+                        <button class="btn" onclick="resetFilters()">Сбросить</button>
+                        <button class="btn primary" onclick="applyFilters()">Применить</button>
+                    </div>
+                </div>
+            </details>
+
             <div id="events-list" class="cards-list">
             </div>
         </section>
