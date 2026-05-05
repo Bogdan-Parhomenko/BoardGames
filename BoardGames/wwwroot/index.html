@@ -47,6 +47,12 @@
                 <button type="submit" class="btn primary">Войти</button>
             </form>
 
+            <div class="vk-login-divider">
+                <span>или</span>
+            </div>
+
+            <div id="vkid-button-container" class="vk-login-host"></div>
+
             <hr class="divider" />
 
             <h2>Регистрация</h2>
@@ -196,31 +202,33 @@
                 <button type="submit" class="btn primary">Сохранить профиль</button>
             </form>
 
-            <hr class="divider" />
+            <div id="profile-login-section">
+                <hr class="divider" />
+                <h3>Изменение логина</h3>
+                <form id="login-change-form" onsubmit="changeLogin(event)">
+                    <label>
+                        Новый логин
+                        <input type="email" id="profile-login-new" placeholder="name@example.com" required />
+                    </label>
+                    <button type="submit" class="btn secondary">Изменить логин</button>
+                </form>
+            </div>
 
-            <h3>Изменение логина</h3>
-            <form id="login-change-form" onsubmit="changeLogin(event)">
-                <label>
-                    Новый логин
-                    <input type="email" id="profile-login-new" placeholder="name@example.com" required />
-                </label>
-                <button type="submit" class="btn secondary">Изменить логин</button>
-            </form>
-
-            <hr class="divider" />
-
-            <h3>Изменение пароля</h3>
-            <form id="password-change-form" onsubmit="changePassword(event)">
-                <label>
-                    Текущий пароль
-                    <input type="password" id="profile-current-password" required />
-                </label>
-                <label>
-                    Новый пароль
-                    <input type="password" id="profile-new-password" required />
-                </label>
-                <button type="submit" class="btn secondary">Изменить пароль</button>
-            </form>
+            <div id="profile-password-section">
+                <hr class="divider" />
+                <h3>Изменение пароля</h3>
+                <form id="password-change-form" onsubmit="changePassword(event)">
+                    <label>
+                        Текущий пароль
+                        <input type="password" id="profile-current-password" required />
+                    </label>
+                    <label>
+                        Новый пароль
+                        <input type="password" id="profile-new-password" required />
+                    </label>
+                    <button type="submit" class="btn secondary">Изменить пароль</button>
+                </form>
+            </div>
 
             <hr class="divider" />
 
@@ -452,6 +460,7 @@
     </main>
 </div>
 
+<script nonce="csp_nonce" src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

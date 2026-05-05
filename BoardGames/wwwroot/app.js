@@ -1,5 +1,8 @@
 const API_BASE_URL = "/api";
 
+const VK_APP_ID = 54576394;
+const VK_REDIRECT_URL = `https://rugjs1ntaf.localto.net/index.html`;
+
 let currentUser = null;
 let currentChatId = null;
 let chatRefreshInterval = null;
@@ -230,8 +233,22 @@ async function loadProfile() {
 
         currentUser.photo = profile.photo;
         currentUser.fullName = profile.fullName;
+        currentUser.vkId = profile.vkId;
         saveCurrentUser(currentUser);
         updateUserInfoHeader(profile);
+
+        const isVkUser = profile.vkId !== null && profile.vkId !== undefined;
+
+        const loginSection = document.getElementById("profile-login-section");
+        const passwordSection = document.getElementById("profile-password-section");
+
+        if (loginSection) {
+            loginSection.classList.toggle("hidden", isVkUser);
+        }
+
+        if (passwordSection) {
+            passwordSection.classList.toggle("hidden", isVkUser);
+        }
 
         // Загружаем отзывы о себе
         loadMyReviews();
@@ -2129,6 +2146,193 @@ function buildFilterQueryString() {
     return params.toString();
 }
 
+// ====== VK ID ======
+
+function initVkIdButton() {
+    if (!window.VKIDSDK) {
+        console.warn("VKID SDK не загружен");
+        return;
+    }
+
+    const container = document.getElementById("vkid-button-container");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    const VKID = window.VKIDSDK;
+
+    VKID.Config.init({
+        app: VK_APP_ID,
+        redirectUrl: VK_REDIRECT_URL,
+        responseMode: VKID.ConfigResponseMode.Callback,
+        source: VKID.ConfigSource.LOWCODE,
+        scope: ""
+    });
+
+    const oneTap = new VKID.OneTap();
+
+    oneTap.render({
+        container: container,
+        showAlternativeLogin: true,
+        styles: {
+            borderRadius: 50,
+            width: 190,
+            height: 36
+        }
+    })
+        .on(VKID.WidgetEvents.ERROR, vkidOnError)
+        .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async function (payload) {
+            try {
+                const code = payload.code;
+                const deviceId = payload.device_id;
+
+                const data = await VKID.Auth.exchangeCode(code, deviceId);
+                await vkidOnSuccess(data);
+            } catch (error) {
+                vkidOnError(error);
+            }
+        });
+}
+
+function extractVkAccessToken(data) {
+    return data?.access_token
+        || data?.accessToken
+        || data?.token
+        || null;
+}
+
+function extractVkUserId(data) {
+    const rawValue =
+        data?.user_id
+        ?? data?.userId
+        ?? data?.user?.id
+        ?? null;
+
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function vkidOnSuccess(data) {
+    console.log("VK ID result:", data);
+
+    const accessToken = extractVkAccessToken(data);
+    const vkUserId = extractVkUserId(data);
+
+    if (!accessToken || !vkUserId) {
+        showMessage("Не удалось получить данные ВКонтакте", "error");
+        return;
+    }
+
+    try {
+        const vkProfile = await loadVkProfileFromClient(accessToken, vkUserId);
+
+        const resp = await fetch(`${API_BASE_URL}/auth/vk-id-login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                vkUserId: vkUserId,
+                fullName: vkProfile.fullName,
+                photo: vkProfile.photo,
+                city: vkProfile.city
+            })
+        });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            showMessage(`Ошибка входа через ВКонтакте: ${txt}`, "error");
+            return;
+        }
+
+        const user = await resp.json();
+        saveCurrentUser(user);
+        updateNav();
+        showMessage("Вы вошли через ВКонтакте", "info");
+    } catch (err) {
+        console.error(err);
+        showMessage("Ошибка входа через ВКонтакте", "error");
+    }
+}
+
+function vkidOnError(error) {
+    console.error("VK ID error:", error);
+    showMessage("Ошибка входа через ВКонтакте", "error");
+}
+
+function loadVkProfileFromClient(accessToken, vkUserId) {
+    return new Promise((resolve, reject) => {
+        const callbackName = `vkJsonpCallback_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+        const cleanup = (scriptEl) => {
+            try {
+                delete window[callbackName];
+            } catch { }
+            if (scriptEl && scriptEl.parentNode) {
+                scriptEl.parentNode.removeChild(scriptEl);
+            }
+        };
+
+        const script = document.createElement("script");
+
+        const timeout = setTimeout(() => {
+            cleanup(script);
+            reject(new Error("Тайм-аут при получении данных пользователя ВКонтакте"));
+        }, 10000);
+
+        window[callbackName] = function (json) {
+            clearTimeout(timeout);
+            cleanup(script);
+
+            if (!json) {
+                reject(new Error("ВКонтакте вернул пустой ответ"));
+                return;
+            }
+
+            if (json.error) {
+                reject(new Error(json.error.error_msg || "Ошибка ВКонтакте"));
+                return;
+            }
+
+            const vkUser = json.response?.[0];
+            if (!vkUser) {
+                reject(new Error("ВКонтакте не вернул данные пользователя"));
+                return;
+            }
+
+            const firstName = vkUser.first_name ?? "";
+            const lastName = vkUser.last_name ?? "";
+            const fullName = `${firstName} ${lastName}`.trim();
+
+            const photo = vkUser.photo_200 ?? null;
+            const city = vkUser.city?.title ?? null;
+
+            resolve({
+                fullName,
+                photo,
+                city
+            });
+        };
+
+        const url =
+            `https://api.vk.com/method/users.get` +
+            `?user_ids=${encodeURIComponent(vkUserId)}` +
+            `&fields=photo_200,city` +
+            `&access_token=${encodeURIComponent(accessToken)}` +
+            `&v=5.199` +
+            `&callback=${callbackName}`;
+
+        script.src = url;
+        script.async = true;
+
+        script.onerror = () => {
+            clearTimeout(timeout);
+            cleanup(script);
+            reject(new Error("Не удалось загрузить данные пользователя ВКонтакте"));
+        };
+
+        document.body.appendChild(script);
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     loadCurrentUserFromStorage();
 
@@ -2136,6 +2340,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (fileInput) {
         fileInput.addEventListener("change", handlePhotoFileChange);
     }
+
+    initVkIdButton();
 
     // Закрывать emoji picker
     document.addEventListener("click", (e) => {

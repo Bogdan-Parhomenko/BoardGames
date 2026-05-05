@@ -19,3 +19,11 @@ public class LoginResponse
     public string Login { get; set; } = null!;
     public string FullName { get; set; } = null!;
 }
+
+public class VkIdLoginRequest
+{
+    public long VkUserId { get; set; }
+    public string? FullName { get; set; }
+    public string? Photo { get; set; }
+    public string? City { get; set; }
+}

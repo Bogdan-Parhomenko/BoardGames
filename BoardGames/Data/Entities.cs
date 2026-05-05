@@ -11,6 +11,8 @@ public class User
     public string? City { get; set; }
     public string? Photo { get; set; }
 
+    public long? VkId { get; set; }
+
     public ICollection<GameEvent> CreatedEvents { get; set; } = new List<GameEvent>();
     public ICollection<UserEventParticipation> EventParticipations { get; set; } = new List<UserEventParticipation>();
     public ICollection<FavoriteEvent> FavoriteEvents { get; set; } = new List<FavoriteEvent>();

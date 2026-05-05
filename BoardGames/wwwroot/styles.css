@@ -1415,3 +1415,25 @@ textarea {
         min-width: 100%;
     }
 }}
+
+/* ====== VK ID ====== */
+
+.vk-login-divider {
+    text-align: center;
+    margin: 1rem 0;
+    position: relative;
+}
+
+    .vk-login-divider span {
+        position: relative;
+        z-index: 1;
+        background-color: var(--bg-card);
+        padding: 0 0.75rem;
+        font-size: 0.85rem;
+        color: #6b574e;
+    }
+
+.vk-login-host {
+    margin-bottom: 1rem;
+    margin-top: 6px;
+}

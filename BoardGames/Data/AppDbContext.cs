@@ -30,6 +30,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(u => u.UserId);
             entity.HasIndex(u => u.Login).IsUnique();
+            entity.HasIndex(u => u.VkId).IsUnique();
         });
 
         modelBuilder.Entity<GameCategory>(entity =>

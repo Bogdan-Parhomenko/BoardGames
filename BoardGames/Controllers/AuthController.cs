@@ -58,4 +58,55 @@ public class AuthController : ControllerBase
             FullName = user.FullName
         };
     }
+
+    [HttpPost("vk-id-login")]
+    public async Task<ActionResult<LoginResponse>> VkIdLogin(VkIdLoginRequest request)
+    {
+        if (request.VkUserId <= 0)
+            return BadRequest("Некорректный VK ID");
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.VkId == request.VkUserId);
+
+        if (user == null)
+        {
+            var baseLogin = $"vk_{request.VkUserId}";
+            var login = baseLogin;
+            var suffix = 1;
+
+            while (await _db.Users.AnyAsync(u => u.Login == login))
+            {
+                login = $"{baseLogin}_{suffix}";
+                suffix++;
+            }
+
+            user = new User
+            {
+                VkId = request.VkUserId,
+                Login = login,
+                PasswordHash = PasswordHelper.HashPassword(Guid.NewGuid().ToString()),
+                FullName = string.IsNullOrWhiteSpace(request.FullName) ? login : request.FullName.Trim(),
+                City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim(),
+                Photo = string.IsNullOrWhiteSpace(request.Photo) ? null : request.Photo.Trim()
+            };
+
+            _db.Users.Add(user);
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(request.FullName))
+                user.FullName = request.FullName.Trim();
+
+            user.City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim();
+            user.Photo = string.IsNullOrWhiteSpace(request.Photo) ? null : request.Photo.Trim();
+        }
+
+        await _db.SaveChangesAsync();
+
+        return new LoginResponse
+        {
+            UserId = user.UserId,
+            Login = user.Login,
+            FullName = user.FullName
+        };
+    }
 }

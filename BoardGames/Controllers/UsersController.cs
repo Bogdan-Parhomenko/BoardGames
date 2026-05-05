@@ -34,7 +34,8 @@ public class UsersController : ControllerBase
             Description = user.Description,
             Phone = user.Phone,
             City = user.City,
-            Photo = user.Photo
+            Photo = user.Photo,
+            VkId = user.VkId
         };
     }
 
