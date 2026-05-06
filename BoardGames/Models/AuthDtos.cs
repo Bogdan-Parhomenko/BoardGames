@@ -18,6 +18,7 @@ public class LoginResponse
     public int UserId { get; set; }
     public string Login { get; set; } = null!;
     public string FullName { get; set; } = null!;
+    public string Role { get; set; } = "user";
 }
 
 public class VkIdLoginRequest

@@ -25,12 +25,13 @@ public class EventsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<GameEventDto>>> GetEvents(
-    [FromQuery] int? userId,
-    [FromQuery] string? categories,
-    [FromQuery] DateOnly? dateFrom,
-    [FromQuery] DateOnly? dateTo,
-    [FromQuery] int? maxPlayersFrom,
-    [FromQuery] int? maxPlayersTo)
+        [FromQuery] int? userId,
+        [FromQuery] string? title,
+        [FromQuery] string? categories,
+        [FromQuery] DateOnly? dateFrom,
+        [FromQuery] DateOnly? dateTo,
+        [FromQuery] int? maxPlayersFrom,
+        [FromQuery] int? maxPlayersTo)
     {
         var now = DateTime.Now;
 
@@ -40,6 +41,13 @@ public class EventsController : ControllerBase
             .Include(e => e.Categories)
             .Include(e => e.Participants)
             .AsQueryable();
+
+        // Фильтр по названию
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            var titleLower = title.ToLower();
+            query = query.Where(e => e.Title.ToLower().Contains(titleLower));
+        }
 
         // Фильтр по категориям
         if (!string.IsNullOrWhiteSpace(categories))
@@ -55,29 +63,17 @@ public class EventsController : ControllerBase
             }
         }
 
-        // Фильтр по дате (от)
         if (dateFrom.HasValue)
-        {
             query = query.Where(e => e.EventDate >= dateFrom.Value);
-        }
 
-        // Фильтр по дате (до)
         if (dateTo.HasValue)
-        {
             query = query.Where(e => e.EventDate <= dateTo.Value);
-        }
 
-        // Фильтр по количеству игроков (от)
         if (maxPlayersFrom.HasValue)
-        {
             query = query.Where(e => e.MaxPlayers >= maxPlayersFrom.Value);
-        }
 
-        // Фильтр по количеству игроков (до)
         if (maxPlayersTo.HasValue)
-        {
             query = query.Where(e => e.MaxPlayers <= maxPlayersTo.Value);
-        }
 
         var events = await query
             .Select(e => new GameEventDto

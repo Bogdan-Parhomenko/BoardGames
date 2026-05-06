@@ -18,8 +18,10 @@
             <button id="nav-auth" class="nav-btn" onclick="showSection('auth')">Вход / Регистрация</button>
             <button id="nav-events" class="nav-btn hidden" onclick="showSection('events')">События</button>
             <button id="nav-chats" class="nav-btn hidden" onclick="showSection('chats')">Сообщения <span id="nav-chats-badge" class="nav-badge hidden">0</span></button>
+            <button id="nav-notifications" class="nav-btn hidden" onclick="showSection('notifications')">🔔 <span id="nav-notifications-badge" class="nav-badge hidden">0</span></button>
             <button id="nav-favorites" class="nav-btn hidden" onclick="showSection('favorites')">Избранное</button>
             <button id="nav-profile" class="nav-btn hidden" onclick="showSection('profile')">Профиль</button>
+            <button id="nav-admin" class="nav-btn hidden" onclick="showSection('admin')">Админ-панель</button>
             <button id="nav-logout" class="nav-btn hidden" onclick="logout()">Выход</button>
         </nav>
         <div id="user-info" class="user-info hidden">
@@ -87,6 +89,13 @@
                     <span class="filter-active-count hidden" id="filter-active-count"></span>
                 </summary>
                 <div class="filter-panel card">
+                    <div class="filter-row">
+                        <label class="filter-field filter-field-wide">
+                            Название события
+                            <input type="text" id="filter-title" placeholder="Введите название...">
+                        </label>
+                    </div>
+
                     <div class="filter-row">
                         <label class="filter-field filter-field-wide">
                             Категории
@@ -270,6 +279,188 @@
             <div id="favorites-list" class="cards-list">
             </div>
         </section>
+
+        <!-- Секция уведомлений -->
+        <section id="section-notifications" class="hidden card">
+            <div class="section-header">
+                <h2>🔔 Уведомления</h2>
+                <button class="btn" onclick="markAllNotificationsRead()">Отметить все как прочитанные</button>
+            </div>
+            <div id="notifications-list" class="notifications-list">
+                <p>Загрузка...</p>
+            </div>
+        </section>
+
+        <!-- Секция админ-панели -->
+        <section id="section-admin" class="hidden">
+            <div class="section-header">
+                <h2>⚙️ Админ-панель</h2>
+            </div>
+
+            <div class="admin-tabs">
+                <button class="admin-tab active" onclick="switchAdminTab('stats')">📊 Статистика</button>
+                <button class="admin-tab" onclick="switchAdminTab('complaints')">📨 Жалобы <span id="admin-complaints-badge" class="nav-badge hidden">0</span></button>
+                <button class="admin-tab" onclick="switchAdminTab('events')">🎮 События</button>
+                <button class="admin-tab" onclick="switchAdminTab('reviews')">⭐ Отзывы</button>
+                <button class="admin-tab" onclick="switchAdminTab('users')">👥 Пользователи</button>
+                <button class="admin-tab" onclick="switchAdminTab('bans')">🚫 Баны</button>
+                <button class="admin-tab" onclick="switchAdminTab('categories')">📁 Категории</button>
+            </div>
+
+            <div class="admin-panel" id="admin-panel-stats">
+                <div class="admin-stats-grid" id="admin-stats-grid"></div>
+            </div>
+
+            <div class="admin-panel hidden" id="admin-panel-complaints">
+                <div class="admin-filter-row">
+                    <select id="admin-complaints-filter" onchange="loadAdminComplaints()">
+                        <option value="pending">Ожидающие</option>
+                        <option value="reviewed">Рассмотренные</option>
+                        <option value="dismissed">Отклонённые</option>
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div id="admin-complaints-list"></div>
+            </div>
+
+            <div class="admin-panel hidden" id="admin-panel-events">
+                <div id="admin-events-list" class="cards-list"></div>
+            </div>
+
+            <div class="admin-panel hidden" id="admin-panel-reviews">
+                <div id="admin-reviews-list"></div>
+            </div>
+
+            <div class="admin-panel hidden" id="admin-panel-users">
+                <div id="admin-users-list"></div>
+            </div>
+
+            <div class="admin-panel hidden" id="admin-panel-bans">
+                <h3>Баны на отзывы</h3>
+                <div id="admin-review-bans-list"></div>
+                <hr class="divider" />
+                <h3>Баны пользователей</h3>
+                <div id="admin-user-bans-list"></div>
+            </div>
+
+            <div class="admin-panel hidden" id="admin-panel-categories">
+                <div class="section-header">
+                    <h3>Категории игр</h3>
+                    <button class="btn primary" onclick="openCategoryForm()">Добавить</button>
+                </div>
+                <div id="admin-categories-list"></div>
+            </div>
+        </section>
+
+        <!-- Модалка удаления события админом -->
+        <div id="admin-delete-modal" class="modal hidden">
+            <div class="modal-content card">
+                <h3>Удаление события</h3>
+                <p id="admin-delete-event-title" style="font-weight:600;"></p>
+                <form id="admin-delete-form" onsubmit="submitAdminDeleteEvent(event)">
+                    <input type="hidden" id="admin-delete-event-id">
+                    <label>
+                        Причина удаления
+                        <textarea id="admin-delete-reason" required placeholder="Укажите причину..."></textarea>
+                    </label>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" onclick="closeAdminDeleteModal()">Отмена</button>
+                        <button type="submit" class="btn" style="background-color:#e74c3c;color:white;">Удалить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модалка жалобы -->
+        <div id="complaint-modal" class="modal hidden">
+            <div class="modal-content card">
+                <h3>Подать жалобу</h3>
+                <form id="complaint-form" onsubmit="submitComplaint(event)">
+                    <input type="hidden" id="complaint-type">
+                    <input type="hidden" id="complaint-target-id">
+                    <label>
+                        Опишите причину жалобы
+                        <textarea id="complaint-reason" required placeholder="Укажите, что именно нарушает правила..."></textarea>
+                    </label>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" onclick="closeComplaintModal()">Отмена</button>
+                        <button type="submit" class="btn primary">Отправить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модалка бана -->
+        <div id="ban-modal" class="modal hidden">
+            <div class="modal-content card">
+                <h3 id="ban-modal-title">Бан</h3>
+                <form id="ban-form" onsubmit="submitBan(event)">
+                    <input type="hidden" id="ban-type">
+                    <input type="hidden" id="ban-user-id">
+                    <p id="ban-user-name" style="font-weight:600;"></p>
+                    <label>
+                        Причина
+                        <textarea id="ban-reason" required placeholder="Укажите причину..."></textarea>
+                    </label>
+                    <label>
+                        Срок
+                        <select id="ban-duration">
+                            <option value="week">На неделю</option>
+                            <option value="month">На месяц</option>
+                            <option value="forever">Навсегда</option>
+                        </select>
+                    </label>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" onclick="closeBanModal()">Отмена</button>
+                        <button type="submit" class="btn" style="background-color:#e74c3c;color:white;">Забанить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модалка категории -->
+        <div id="category-modal" class="modal hidden">
+            <div class="modal-content card">
+                <h3 id="category-modal-title">Добавить категорию</h3>
+                <form id="category-form" onsubmit="submitCategory(event)">
+                    <input type="hidden" id="category-edit-id">
+                    <label>
+                        Название
+                        <input type="text" id="category-name" required>
+                    </label>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" onclick="closeCategoryModal()">Отмена</button>
+                        <button type="submit" class="btn primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модалка рассмотрения жалобы -->
+        <div id="resolve-complaint-modal" class="modal hidden">
+            <div class="modal-content card">
+                <h3>Рассмотрение жалобы</h3>
+                <div id="resolve-complaint-info"></div>
+                <form id="resolve-complaint-form" onsubmit="submitResolveComplaint(event)">
+                    <input type="hidden" id="resolve-complaint-id">
+                    <label>
+                        Решение
+                        <select id="resolve-complaint-status" required>
+                            <option value="reviewed">Принять к сведению</option>
+                            <option value="dismissed">Отклонить</option>
+                        </select>
+                    </label>
+                    <label>
+                        Комментарий (необязательно)
+                        <textarea id="resolve-complaint-comment" placeholder="Комментарий..."></textarea>
+                    </label>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" onclick="closeResolveComplaintModal()">Отмена</button>
+                        <button type="submit" class="btn primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <!-- Модальное окно создания/редактирования события -->
         <div id="event-modal" class="modal hidden">

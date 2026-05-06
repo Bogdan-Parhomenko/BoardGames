@@ -13,6 +13,8 @@ public class User
 
     public long? VkId { get; set; }
 
+    public string Role { get; set; } = "user";
+
     public ICollection<GameEvent> CreatedEvents { get; set; } = new List<GameEvent>();
     public ICollection<UserEventParticipation> EventParticipations { get; set; } = new List<UserEventParticipation>();
     public ICollection<FavoriteEvent> FavoriteEvents { get; set; } = new List<FavoriteEvent>();
@@ -22,6 +24,11 @@ public class User
 
     public ICollection<UserReview> ReviewsWritten { get; set; } = new List<UserReview>();
     public ICollection<UserReview> ReviewsReceived { get; set; } = new List<UserReview>();
+
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public ICollection<ReviewBan> ReviewBans { get; set; } = new List<ReviewBan>();
+    public ICollection<UserBan> UserBans { get; set; } = new List<UserBan>();
+    public ICollection<Complaint> Complaints { get; set; } = new List<Complaint>();
 }
 
 public class GameCategory

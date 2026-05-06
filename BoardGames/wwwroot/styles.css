@@ -1437,3 +1437,338 @@ textarea {
     margin-bottom: 1rem;
     margin-top: 6px;
 }
+
+/* ====== Уведомления ====== */
+
+.notifications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.notification-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-soft);
+    background-color: var(--bg-card);
+    transition: background-color 0.15s;
+}
+
+    .notification-item.unread {
+        background-color: #fdf3e7;
+        border-color: #f0cf9b;
+    }
+
+.notification-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 0.3rem;
+}
+
+.notification-message {
+    font-size: 0.88rem;
+    white-space: pre-wrap;
+    color: #3f2e2b;
+    line-height: 1.4;
+}
+
+.notification-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.notification-date {
+    font-size: 0.75rem;
+    color: #999;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 0.3rem;
+}
+
+    .notification-actions button {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+    }
+
+/* ====== Админ-панель ====== */
+
+.admin-tabs {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--border-soft);
+    padding-bottom: 0.5rem;
+}
+
+.admin-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 0.5rem 1rem;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: #6b574e;
+    transition: 0.15s;
+}
+
+    .admin-tab:hover {
+        background-color: rgba(200, 157, 124, 0.1);
+    }
+
+    .admin-tab.active {
+        background-color: var(--bg-card);
+        border-color: var(--border-soft);
+        border-bottom-color: var(--bg-card);
+        color: var(--accent);
+        font-weight: 600;
+    }
+
+.admin-panel {
+    min-height: 200px;
+}
+
+.admin-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.admin-stat-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.admin-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.admin-stat-label {
+    font-size: 0.85rem;
+    color: #6b574e;
+    margin-top: 0.3rem;
+}
+
+.admin-filter-row {
+    margin-bottom: 1rem;
+}
+
+    .admin-filter-row select {
+        padding: 0.45rem 0.7rem;
+        border-radius: 8px;
+        border: 1px solid var(--border-soft);
+        background-color: #fffdf8;
+        font-size: 0.9rem;
+    }
+
+.complaint-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+    .complaint-card.pending {
+        border-left: 4px solid #f39c12;
+    }
+
+    .complaint-card.reviewed {
+        border-left: 4px solid #27ae60;
+    }
+
+    .complaint-card.dismissed {
+        border-left: 4px solid #95a5a6;
+    }
+
+.complaint-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.complaint-type-badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+    .complaint-type-badge.event {
+        background-color: #e8d5c4;
+        color: var(--accent);
+    }
+
+    .complaint-type-badge.review {
+        background-color: #d5e8d4;
+        color: #27ae60;
+    }
+
+.complaint-status-badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+}
+
+    .complaint-status-badge.pending {
+        background-color: #fef3cd;
+        color: #856404;
+    }
+
+    .complaint-status-badge.reviewed {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .complaint-status-badge.dismissed {
+        background-color: #e2e3e5;
+        color: #383d41;
+    }
+
+.complaint-body {
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+}
+
+.complaint-meta {
+    font-size: 0.8rem;
+    color: #6b574e;
+}
+
+.complaint-actions {
+    margin-top: 0.75rem;
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+
+.admin-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+    .admin-list-item:last-child {
+        border-bottom: none;
+    }
+
+.admin-list-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-soft);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.admin-list-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-list-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.admin-list-detail {
+    font-size: 0.8rem;
+    color: #6b574e;
+}
+
+.admin-list-actions {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.admin-list-badges {
+    display: flex;
+    gap: 0.3rem;
+    margin-top: 0.2rem;
+}
+
+.badge-banned {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.badge-admin {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.badge-vk {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background-color: #d4e8f5;
+    color: #0077FF;
+}
+
+.report-btn {
+    background: none;
+    border: none;
+    font-size: 0.75rem;
+    color: #bbb;
+    cursor: pointer;
+    padding: 0.15rem 0.3rem;
+    transition: color 0.15s;
+}
+
+    .report-btn:hover {
+        color: #e74c3c;
+    }
+
+.admin-category-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+    .admin-category-item:last-child {
+        border-bottom: none;
+    }
+
+.admin-category-name {
+    font-weight: 500;
+}
+
+.admin-category-desc {
+    font-size: 0.8rem;
+    color: #6b574e;
+}

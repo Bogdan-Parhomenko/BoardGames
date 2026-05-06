@@ -22,6 +22,11 @@ public class AppDbContext : DbContext
 
     public DbSet<UserReview> UserReviews => Set<UserReview>();
 
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<ReviewBan> ReviewBans => Set<ReviewBan>();
+    public DbSet<UserBan> UserBans => Set<UserBan>();
+    public DbSet<Complaint> Complaints => Set<Complaint>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -171,6 +176,66 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(r => new { r.ReviewerId, r.TargetUserId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(n => n.NotificationId);
+
+            entity.HasOne(n => n.User)
+                .WithMany(u => u.Notifications)
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReviewBan>(entity =>
+        {
+            entity.HasKey(b => b.BanId);
+
+            entity.HasOne(b => b.User)
+                .WithMany(u => u.ReviewBans)
+                .HasForeignKey(b => b.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(b => b.Admin)
+                .WithMany()
+                .HasForeignKey(b => b.BannedBy)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserBan>(entity =>
+        {
+            entity.HasKey(b => b.BanId);
+
+            entity.HasOne(b => b.User)
+                .WithMany(u => u.UserBans)
+                .HasForeignKey(b => b.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(b => b.Admin)
+                .WithMany()
+                .HasForeignKey(b => b.BannedBy)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Complaint>(entity =>
+        {
+            entity.HasKey(c => c.ComplaintId);
+
+            entity.HasOne(c => c.Reporter)
+                .WithMany(u => u.Complaints)
+                .HasForeignKey(c => c.ReporterId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(c => c.TargetEvent)
+                .WithMany()
+                .HasForeignKey(c => c.TargetEventId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(c => c.TargetReview)
+                .WithMany()
+                .HasForeignKey(c => c.TargetReviewId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

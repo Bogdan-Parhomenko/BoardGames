@@ -17,6 +17,23 @@ public class AuthController : ControllerBase
         _db = db;
     }
 
+    private async Task<string?> CheckUserBan(int userId)
+    {
+        var ban = await _db.UserBans
+            .Where(b => b.UserId == userId && b.IsActive &&
+                       (b.ExpiresAt == null || b.ExpiresAt > DateTime.UtcNow))
+            .OrderByDescending(b => b.BannedAt)
+            .FirstOrDefaultAsync();
+
+        if (ban == null) return null;
+
+        var expiryText = ban.ExpiresAt.HasValue
+            ? $"до {ban.ExpiresAt.Value:dd.MM.yyyy HH:mm}"
+            : "навсегда";
+
+        return $"Ваш аккаунт заблокирован {expiryText}. Причина: {ban.Reason}";
+    }
+
     [HttpPost("register")]
     public async Task<ActionResult<LoginResponse>> Register(RegisterRequest request)
     {
@@ -51,11 +68,16 @@ public class AuthController : ControllerBase
         if (!PasswordHelper.VerifyPassword(request.Password, user.PasswordHash))
             return Unauthorized("Неверный логин или пароль");
 
+        var banMessage = await CheckUserBan(user.UserId);
+        if (banMessage != null)
+            return Unauthorized(banMessage);
+
         return new LoginResponse
         {
             UserId = user.UserId,
             Login = user.Login,
-            FullName = user.FullName
+            FullName = user.FullName,
+            Role = user.Role
         };
     }
 
@@ -93,11 +115,16 @@ public class AuthController : ControllerBase
         }
         else
         {
+            var banMessage = await CheckUserBan(user.UserId);
+            if (banMessage != null)
+                return Unauthorized(banMessage);
+
             if (!string.IsNullOrWhiteSpace(request.FullName))
                 user.FullName = request.FullName.Trim();
-
-            user.City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim();
-            user.Photo = string.IsNullOrWhiteSpace(request.Photo) ? null : request.Photo.Trim();
+            if (!string.IsNullOrWhiteSpace(request.City))
+                user.City = request.City.Trim();
+            if (!string.IsNullOrWhiteSpace(request.Photo))
+                user.Photo = request.Photo.Trim();
         }
 
         await _db.SaveChangesAsync();
@@ -106,7 +133,18 @@ public class AuthController : ControllerBase
         {
             UserId = user.UserId,
             Login = user.Login,
-            FullName = user.FullName
+            FullName = user.FullName,
+            Role = user.Role
         };
+    }
+
+    [HttpGet("check-ban")]
+    public async Task<IActionResult> CheckBan([FromQuery] int userId)
+    {
+        var banMessage = await CheckUserBan(userId);
+        if (banMessage != null)
+            return Unauthorized(banMessage);
+
+        return Ok();
     }
 }

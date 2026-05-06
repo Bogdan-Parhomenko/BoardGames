@@ -42,19 +42,20 @@ function showMessage(text, type = "info") {
     }, 4000);
 }
 
+function isAdmin() {
+    return currentUser && currentUser.role === "admin";
+}
+
 function showSection(name) {
-    const sections = ["auth", "events", "profile", "favorites", "chats"];
+    const sections = ["auth", "events", "profile", "favorites", "chats", "notifications", "admin"];
     sections.forEach((s) => {
         const el = document.getElementById(`section-${s}`);
         if (el) el.classList.toggle("hidden", s !== name);
     });
 
     if (name === "chats") {
-        // Сбрасываем текущий открытый чат
         currentChatId = null;
         currentChatData = null;
-
-        // Очищаем область чата (правая панель)
         const chatArea = document.getElementById("chat-area");
         if (chatArea) {
             chatArea.innerHTML = `
@@ -64,15 +65,15 @@ function showSection(name) {
                 </div>
             `;
         }
-
-        // Снимаем выделение с элементов списка чатов
         document.querySelectorAll(".chat-item").forEach(el => el.classList.remove("active"));
-
         loadChats();
         startChatRefresh();
     } else {
         stopChatRefresh();
     }
+
+    if (name === "notifications") loadNotifications();
+    if (name === "admin") switchAdminTab('stats');
 }
 
 function updateNav() {
@@ -80,8 +81,10 @@ function updateNav() {
     document.getElementById("nav-auth").classList.toggle("hidden", isLoggedIn);
     document.getElementById("nav-events").classList.toggle("hidden", !isLoggedIn);
     document.getElementById("nav-chats").classList.toggle("hidden", !isLoggedIn);
+    document.getElementById("nav-notifications").classList.toggle("hidden", !isLoggedIn);
     document.getElementById("nav-profile").classList.toggle("hidden", !isLoggedIn);
     document.getElementById("nav-favorites").classList.toggle("hidden", !isLoggedIn);
+    document.getElementById("nav-admin").classList.toggle("hidden", !isLoggedIn || !isAdmin());
     document.getElementById("nav-logout").classList.toggle("hidden", !isLoggedIn);
 
     if (isLoggedIn) {
@@ -91,6 +94,7 @@ function updateNav() {
         loadEvents();
         loadFavorites();
         updateUnreadBadge();
+        updateNotificationsBadge();
         loadFilterCategories();
     } else {
         updateUserInfoHeader();
@@ -182,14 +186,18 @@ async function loginUser(event) {
         return;
     }
 
-    const body = { login, password };
-
     try {
         const resp = await fetch(`${API_BASE_URL}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+            body: JSON.stringify({ login, password }),
         });
+
+        if (resp.status === 401) {
+            const txt = await resp.text();
+            showMessage(txt, "error");
+            return;
+        }
 
         if (!resp.ok) {
             const txt = await resp.text();
@@ -594,6 +602,15 @@ async function loadEvents() {
                 deleteBtn.textContent = "Удалить";
                 deleteBtn.onclick = () => deleteEvent(ev.gameEventId);
                 actions.appendChild(deleteBtn);
+            }
+
+            // Кнопка жалобы
+            if (ev.creatorId !== currentUser.userId) {
+                const reportBtn = document.createElement('button');
+                reportBtn.className = 'report-btn';
+                reportBtn.textContent = '⚑ Пожаловаться';
+                reportBtn.onclick = () => openComplaintModal('event', ev.gameEventId);
+                actions.appendChild(reportBtn);
             }
 
             container.appendChild(card);
@@ -1804,11 +1821,10 @@ function renderReviews(reviews) {
                 <p class="review-text">${escapeHtml(review.comment)}</p>
                 <div class="review-footer">
                     <span class="review-date">${date}</span>
-                    ${review.isOwn ? `
-                        <div class="review-actions">
-                            <button class="btn" onclick="fillReviewForm()">Редактировать</button>
-                        </div>
-                    ` : ''}
+                    <div style="display:flex;gap:0.3rem;align-items:center;">
+                        ${review.isOwn ? `<div class="review-actions"><button class="btn" onclick="fillReviewForm()">Редактировать</button></div>` : ''}
+                        ${!review.isOwn ? `<button class="report-btn" onclick="openComplaintModal('review', ${review.reviewId})">⚑</button>` : ''}
+                    </div>
                 </div>
             </div>
         `;
@@ -1987,6 +2003,9 @@ async function loadMyReviews() {
                     <p class="review-text">${escapeHtml(review.comment)}</p>
                     <div class="review-footer">
                         <span class="review-date">${date}</span>
+                        <div style="display:flex;gap:0.3rem;align-items:center;">
+                            ${`<button class="report-btn" onclick="openComplaintModal('review', ${review.reviewId})">⚑</button>`}
+                        </div>
                     </div>
                 </div>
             `;
@@ -2098,6 +2117,7 @@ function applyFilters() {
 
 function resetFilters() {
     selectedFilterCategories = [];
+    document.getElementById("filter-title").value = "";
     document.getElementById("filter-category-input").value = "";
     document.getElementById("filter-date-from").value = "";
     document.getElementById("filter-date-to").value = "";
@@ -2109,10 +2129,11 @@ function resetFilters() {
 
 function updateFilterActiveCount() {
     let count = 0;
+    if (document.getElementById("filter-title")?.value.trim()) count++;
     if (selectedFilterCategories.length > 0) count++;
-    if (document.getElementById("filter-date-from").value) count++;
-    if (document.getElementById("filter-date-to").value) count++;
-    if (document.getElementById("filter-players-to").value) count++;
+    if (document.getElementById("filter-date-from")?.value) count++;
+    if (document.getElementById("filter-date-to")?.value) count++;
+    if (document.getElementById("filter-players-to")?.value) count++;
 
     const badge = document.getElementById("filter-active-count");
     if (count > 0) {
@@ -2129,6 +2150,9 @@ function buildFilterQueryString() {
     if (currentUser) {
         params.set("userId", currentUser.userId);
     }
+
+    const title = document.getElementById("filter-title")?.value.trim();
+    if (title) params.set("title", title);
 
     if (selectedFilterCategories.length > 0) {
         params.set("categories", selectedFilterCategories.map(c => c.name).join(","));
@@ -2237,6 +2261,12 @@ async function vkidOnSuccess(data) {
             })
         });
 
+        if (resp.status === 401) {
+            const txt = await resp.text();
+            showMessage(txt, "error");
+            return;
+        }
+
         if (!resp.ok) {
             const txt = await resp.text();
             showMessage(`Ошибка входа через ВКонтакте: ${txt}`, "error");
@@ -2249,7 +2279,7 @@ async function vkidOnSuccess(data) {
         showMessage("Вы вошли через ВКонтакте", "info");
     } catch (err) {
         console.error(err);
-        showMessage("Ошибка входа через ВКонтакте", "error");
+        showMessage(`Ошибка входа через ВКонтакте: ${err.message}`, "error");
     }
 }
 
@@ -2333,6 +2363,663 @@ function loadVkProfileFromClient(accessToken, vkUserId) {
     });
 }
 
+// ====== УВЕДОМЛЕНИЯ ======
+
+async function loadNotifications() {
+    if (!currentUser) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/notifications/user/${currentUser.userId}`);
+        if (!resp.ok) return;
+        const notifications = await resp.json();
+        const container = document.getElementById("notifications-list");
+
+        if (!notifications || notifications.length === 0) {
+            container.innerHTML = '<p>У вас нет уведомлений</p>';
+            return;
+        }
+
+        container.innerHTML = "";
+        notifications.forEach(n => {
+            const item = document.createElement("div");
+            item.className = "notification-item" + (n.isRead ? "" : " unread");
+            const date = new Date(n.createdAt).toLocaleString("ru-RU", {
+                day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
+            });
+            item.innerHTML = `
+                <div class="notification-icon">🔔</div>
+                <div class="notification-content">
+                    <div class="notification-title">${escapeHtml(n.title)}</div>
+                    <div class="notification-message">${escapeHtml(n.message)}</div>
+                    <div class="notification-footer">
+                        <span class="notification-date">${date}</span>
+                        <div class="notification-actions">
+                            ${!n.isRead ? `<button class="btn" onclick="markNotificationRead(${n.notificationId})">Прочитано</button>` : ""}
+                            <button class="btn" onclick="deleteNotification(${n.notificationId})">Удалить</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) { console.error(err); }
+}
+
+async function updateNotificationsBadge() {
+    if (!currentUser) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/notifications/user/${currentUser.userId}/unread-count`);
+        if (!resp.ok) return;
+        const count = await resp.json();
+        const badge = document.getElementById("nav-notifications-badge");
+        if (count > 0) {
+            badge.textContent = count > 99 ? "99+" : count;
+            badge.classList.remove("hidden");
+        } else {
+            badge.classList.add("hidden");
+        }
+    } catch (err) { console.error(err); }
+}
+
+async function markNotificationRead(notificationId) {
+    try {
+        await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, { method: "PUT" });
+        loadNotifications();
+        updateNotificationsBadge();
+    } catch (err) { console.error(err); }
+}
+
+async function markAllNotificationsRead() {
+    if (!currentUser) return;
+    try {
+        await fetch(`${API_BASE_URL}/notifications/user/${currentUser.userId}/read-all`, { method: "PUT" });
+        loadNotifications();
+        updateNotificationsBadge();
+        showMessage("Все уведомления отмечены как прочитанные", "info");
+    } catch (err) { console.error(err); }
+}
+
+async function deleteNotification(notificationId) {
+    try {
+        await fetch(`${API_BASE_URL}/notifications/${notificationId}`, { method: "DELETE" });
+        loadNotifications();
+        updateNotificationsBadge();
+    } catch (err) { console.error(err); }
+}
+
+// ====== ЖАЛОБЫ ======
+
+function openComplaintModal(type, targetId) {
+    document.getElementById('complaint-type').value = type;
+    document.getElementById('complaint-target-id').value = targetId;
+    document.getElementById('complaint-reason').value = '';
+    document.getElementById('complaint-modal').classList.remove('hidden');
+}
+
+function closeComplaintModal() {
+    document.getElementById('complaint-modal').classList.add('hidden');
+}
+
+async function submitComplaint(event) {
+    event.preventDefault();
+    if (!currentUser) return;
+    const type = document.getElementById('complaint-type').value;
+    const targetId = parseInt(document.getElementById('complaint-target-id').value);
+    const reason = document.getElementById('complaint-reason').value.trim();
+    if (!reason) { showMessage('Укажите причину', 'error'); return; }
+
+    const body = {
+        reporterId: currentUser.userId,
+        complaintType: type,
+        targetEventId: type === 'event' ? targetId : null,
+        targetReviewId: type === 'review' ? targetId : null,
+        reason
+    };
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/complaints`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (!resp.ok) { const txt = await resp.text(); showMessage(`Ошибка: ${txt}`, 'error'); return; }
+        closeComplaintModal();
+        showMessage('Жалоба отправлена', 'info');
+    } catch (err) { console.error(err); }
+}
+
+// ====== АДМИН-ПАНЕЛЬ ======
+
+let currentAdminTab = 'stats';
+
+function isAdmin() {
+    return currentUser && currentUser.role === "admin";
+}
+
+function switchAdminTab(tab) {
+    currentAdminTab = tab;
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.admin-panel').forEach(p => p.classList.add('hidden'));
+
+    const activeTab = document.querySelector(`.admin-tab[onclick="switchAdminTab('${tab}')"]`);
+    if (activeTab) activeTab.classList.add('active');
+    const panel = document.getElementById(`admin-panel-${tab}`);
+    if (panel) panel.classList.remove('hidden');
+
+    switch (tab) {
+        case 'stats': loadAdminStats(); break;
+        case 'complaints': loadAdminComplaints(); break;
+        case 'events': loadAdminEvents(); break;
+        case 'reviews': loadAdminReviews(); break;
+        case 'users': loadAdminUsers(); break;
+        case 'bans': loadAdminBans(); break;
+        case 'categories': loadAdminCategories(); break;
+    }
+}
+
+// ---- Статистика ----
+
+async function loadAdminStats() {
+    if (!isAdmin()) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/stats?adminUserId=${currentUser.userId}`);
+        if (!resp.ok) return;
+        const s = await resp.json();
+        document.getElementById('admin-stats-grid').innerHTML = `
+            <div class="admin-stat-card"><div class="admin-stat-value">${s.totalUsers}</div><div class="admin-stat-label">Пользователей</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-value">${s.totalEvents}</div><div class="admin-stat-label">Всего событий</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-value">${s.activeEvents}</div><div class="admin-stat-label">Активных</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-value">${s.completedEvents}</div><div class="admin-stat-label">Завершённых</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-value">${s.totalMessages}</div><div class="admin-stat-label">Сообщений</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-value">${s.totalReviews}</div><div class="admin-stat-label">Отзывов</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-value" style="color:#f39c12">${s.pendingComplaints}</div><div class="admin-stat-label">Жалоб (ожидание)</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-value" style="color:#e74c3c">${s.activeUserBans + s.activeReviewBans}</div><div class="admin-stat-label">Активных банов</div></div>
+        `;
+    } catch (err) { console.error(err); }
+}
+
+// ---- Жалобы ----
+
+async function loadAdminComplaints() {
+    if (!isAdmin()) return;
+    const status = document.getElementById('admin-complaints-filter').value;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/complaints?adminUserId=${currentUser.userId}&status=${status}`);
+        if (!resp.ok) return;
+        const complaints = await resp.json();
+        const container = document.getElementById('admin-complaints-list');
+
+        if (!complaints.length) { container.innerHTML = '<p>Жалоб нет</p>'; return; }
+        container.innerHTML = '';
+
+        complaints.forEach(c => {
+            const card = document.createElement('div');
+            card.className = `complaint-card ${c.status}`;
+            const statusText = { pending: 'Ожидает', reviewed: 'Рассмотрена', dismissed: 'Отклонена' }[c.status] || c.status;
+            const date = new Date(c.createdAt).toLocaleString('ru-RU');
+
+            let targetInfo = '';
+            if (c.complaintType === 'event') {
+                targetInfo = `<strong>Событие:</strong> ${c.targetEventTitle || '[удалено]'} (автор: ${c.targetEventCreatorName || '—'})`;
+            } else {
+                targetInfo = `<strong>Отзыв:</strong> от ${c.targetReviewAuthorName || '—'} о ${c.targetReviewTargetUserName || '—'}<br/>"${c.targetReviewComment ? truncateText(c.targetReviewComment, 80) : '[удалён]'}"`;
+            }
+
+            card.innerHTML = `
+                <div class="complaint-header">
+                    <span class="complaint-type-badge ${c.complaintType}">${c.complaintType === 'event' ? 'Событие' : 'Отзыв'}</span>
+                    <span class="complaint-status-badge ${c.status}">${statusText}</span>
+                </div>
+                <div class="complaint-meta">От: <span class="clickable-user" onclick="openPublicProfile(${c.reporterId})">${c.reporterName}</span> | ${date}</div>
+                <div class="complaint-body">${targetInfo}</div>
+                <div class="complaint-body"><strong>Причина:</strong> ${escapeHtml(c.reason)}</div>
+                ${c.adminComment ? `<div class="complaint-body"><strong>Комментарий админа:</strong> ${escapeHtml(c.adminComment)}</div>` : ''}
+                <div class="complaint-actions">
+                    ${c.status === 'pending' ? `<button class="btn primary" onclick="openResolveComplaint(${c.complaintId})">Рассмотреть</button>` : ''}
+                    ${c.complaintType === 'event' && c.targetEventId ? `
+                        <button class="btn" onclick="openEventDetails(${c.targetEventId})">Просмотр</button>
+                        <button class="btn" style="background:#e74c3c;color:#fff;" onclick="openAdminDeleteModal(${c.targetEventId}, '${escapeHtmlAttr(c.targetEventTitle || '')}')">Удалить событие</button>
+                    ` : ''}
+                    ${c.complaintType === 'review' && c.targetReviewId ? `
+                        <button class="btn" style="background:#e74c3c;color:#fff;" onclick="adminDeleteReviewFromComplaint(${c.targetReviewId})">Удалить отзыв</button>
+                    ` : ''}
+                    ${c.targetReviewAuthorId ? `<button class="btn" onclick="openBanModal('review', ${c.targetReviewAuthorId}, '${escapeHtmlAttr(c.targetReviewAuthorName || '')}')">Бан отзывов</button>` : ''}
+                    ${(c.targetEventCreatorId || c.targetReviewAuthorId) ? `<button class="btn" style="background:#e74c3c;color:#fff;font-size:0.8rem;" onclick="openBanModal('user', ${c.targetReviewAuthorId || c.targetEventCreatorId}, '${escapeHtmlAttr(c.targetReviewAuthorName || c.targetEventCreatorName || '')}')">Бан пользователя</button>` : ''}
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    } catch (err) { console.error(err); }
+}
+
+async function adminDeleteReviewFromComplaint(reviewId) {
+    if (!confirm('Удалить этот отзыв?')) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/reviews/${reviewId}?adminUserId=${currentUser.userId}`, { method: 'DELETE' });
+        if (!resp.ok) { showMessage('Ошибка удаления отзыва', 'error'); return; }
+        showMessage('Отзыв удалён', 'info');
+        loadAdminComplaints();
+    } catch (err) { console.error(err); }
+}
+
+function openResolveComplaint(complaintId) {
+    document.getElementById('resolve-complaint-id').value = complaintId;
+    document.getElementById('resolve-complaint-comment').value = '';
+    document.getElementById('resolve-complaint-modal').classList.remove('hidden');
+}
+
+function closeResolveComplaintModal() {
+    document.getElementById('resolve-complaint-modal').classList.add('hidden');
+}
+
+async function submitResolveComplaint(event) {
+    event.preventDefault();
+    if (!isAdmin()) return;
+    const complaintId = document.getElementById('resolve-complaint-id').value;
+    const status = document.getElementById('resolve-complaint-status').value;
+    const adminComment = document.getElementById('resolve-complaint-comment').value.trim();
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/complaints/${complaintId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminUserId: currentUser.userId, status, adminComment: adminComment || null })
+        });
+        if (!resp.ok) { showMessage('Ошибка', 'error'); return; }
+        closeResolveComplaintModal();
+        showMessage('Жалоба рассмотрена', 'info');
+        loadAdminComplaints();
+    } catch (err) { console.error(err); }
+}
+
+// ---- События ----
+
+async function loadAdminEvents() {
+    if (!isAdmin()) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/events?adminUserId=${currentUser.userId}`);
+        if (!resp.ok) return;
+        const events = await resp.json();
+        const container = document.getElementById('admin-events-list');
+        container.innerHTML = '';
+        if (!events.length) { container.innerHTML = '<p>Событий нет</p>'; return; }
+
+        events.forEach(ev => {
+            const card = document.createElement('div');
+            card.className = 'event-card';
+            const statusText = ev.isCompleted ? 'Завершено' : 'Активно';
+            card.innerHTML = `
+                <div class="event-title">${ev.title}</div>
+                <div class="event-meta">
+                    ${ev.eventDate} | ${ev.address} | Игроков: ${ev.maxPlayers} | ${statusText}<br/>
+                    Организатор: <span class="clickable-user" onclick="openPublicProfile(${ev.creatorId})">${ev.creatorName}</span>
+                </div>
+                <div class="event-actions">
+                    <button class="btn" onclick="openEventDetails(${ev.gameEventId})">Подробнее</button>
+                    <button class="btn" style="background:#e74c3c;color:#fff;" onclick="openAdminDeleteModal(${ev.gameEventId}, '${escapeHtmlAttr(ev.title)}')">Удалить</button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    } catch (err) { console.error(err); }
+}
+
+function openAdminDeleteModal(eventId, title) {
+    document.getElementById('admin-delete-event-id').value = eventId;
+    document.getElementById('admin-delete-event-title').textContent = `Событие: «${title}»`;
+    document.getElementById('admin-delete-reason').value = '';
+    document.getElementById('admin-delete-modal').classList.remove('hidden');
+}
+
+function closeAdminDeleteModal() {
+    document.getElementById('admin-delete-modal').classList.add('hidden');
+}
+
+async function submitAdminDeleteEvent(event) {
+    event.preventDefault();
+    if (!isAdmin()) return;
+    const eventId = document.getElementById('admin-delete-event-id').value;
+    const reason = document.getElementById('admin-delete-reason').value.trim();
+    if (!reason) { showMessage('Укажите причину', 'error'); return; }
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/events/${eventId}`, {
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminUserId: currentUser.userId, reason })
+        });
+        if (!resp.ok) { const txt = await resp.text(); showMessage(`Ошибка: ${txt}`, 'error'); return; }
+        closeAdminDeleteModal();
+        showMessage('Событие удалено', 'info');
+        loadAdminEvents();
+    } catch (err) { console.error(err); }
+}
+
+// ---- Отзывы ----
+
+async function loadAdminReviews() {
+    if (!isAdmin()) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/reviews?adminUserId=${currentUser.userId}`);
+        if (!resp.ok) return;
+        const reviews = await resp.json();
+        const container = document.getElementById('admin-reviews-list');
+        container.innerHTML = '';
+        if (!reviews.length) { container.innerHTML = '<p>Отзывов нет</p>'; return; }
+
+        reviews.forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'admin-list-item';
+            const emoji = getRatingEmoji(r.rating);
+            const date = new Date(r.createdAt).toLocaleDateString('ru-RU');
+            item.innerHTML = `
+                <img class="admin-list-avatar" src="${r.reviewerPhoto || 'img/user-placeholder.png'}" onclick="openPublicProfile(${r.reviewerId})">
+                <div class="admin-list-info">
+                    <div class="admin-list-name">
+                        <span class="clickable-user" onclick="openPublicProfile(${r.reviewerId})">${r.reviewerName}</span> →
+                        <span class="clickable-user" onclick="openPublicProfile(${r.targetUserId})">${r.targetUserName}</span> ${emoji}
+                    </div>
+                    <div class="admin-list-detail">${truncateText(r.comment, 100)}</div>
+                    <div class="admin-list-detail" style="color:#999;">${date}</div>
+                </div>
+                <div class="admin-list-actions">
+                    <button class="btn" onclick="openBanModal('review', ${r.reviewerId}, '${escapeHtmlAttr(r.reviewerName)}')">Бан отзывов</button>
+                    <button class="btn" style="background:#e74c3c;color:#fff;font-size:0.8rem;" onclick="adminDeleteReview(${r.reviewId})">Удалить</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) { console.error(err); }
+}
+
+async function adminDeleteReview(reviewId) {
+    if (!confirm('Удалить этот отзыв?')) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/reviews/${reviewId}?adminUserId=${currentUser.userId}`, { method: 'DELETE' });
+        if (!resp.ok) { showMessage('Ошибка удаления', 'error'); return; }
+        showMessage('Отзыв удалён', 'info');
+        loadAdminReviews();
+    } catch (err) { console.error(err); }
+}
+
+// ---- Пользователи ----
+
+async function loadAdminUsers() {
+    if (!isAdmin()) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/users?adminUserId=${currentUser.userId}`);
+        if (!resp.ok) return;
+        const users = await resp.json();
+        const container = document.getElementById('admin-users-list');
+        container.innerHTML = '';
+
+        users.forEach(u => {
+            const item = document.createElement('div');
+            item.className = 'admin-list-item';
+            item.innerHTML = `
+                <img class="admin-list-avatar" src="${u.photo || 'img/user-placeholder.png'}" onclick="openPublicProfile(${u.userId})">
+                <div class="admin-list-info">
+                    <div class="admin-list-name">
+                        <span class="clickable-user" onclick="openPublicProfile(${u.userId})">${u.fullName}</span>
+                        <span style="color:#999;font-size:0.8rem;margin-left:0.3rem;">${u.login}</span>
+                    </div>
+                    <div class="admin-list-detail">
+                        ${u.city || '—'} | Создано: ${u.eventsCreated} | Участвовал: ${u.eventsParticipated} | Отзывов: ${u.reviewsWritten}/${u.reviewsReceived}
+                    </div>
+                    <div class="admin-list-badges">
+                        ${u.role === 'admin' ? '<span class="badge-admin">Админ</span>' : ''}
+                        ${u.isVkUser ? '<span class="badge-vk">ВК</span>' : ''}
+                        ${u.isBanned ? '<span class="badge-banned">Забанен</span>' : ''}
+                        ${u.isReviewBanned ? '<span class="badge-banned">Бан отзывов</span>' : ''}
+                    </div>
+                </div>
+                <div class="admin-list-actions">
+                    ${u.role !== 'admin' ? `
+                        <button class="btn" onclick="openBanModal('review', ${u.userId}, '${escapeHtmlAttr(u.fullName)}')">Бан отзывов</button>
+                        <button class="btn" style="background:#e74c3c;color:#fff;font-size:0.8rem;" onclick="openBanModal('user', ${u.userId}, '${escapeHtmlAttr(u.fullName)}')">Бан</button>
+                    ` : ''}
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) { console.error(err); }
+}
+
+// ---- Баны ----
+
+async function loadAdminBans() {
+    if (!isAdmin()) return;
+    await loadReviewBans();
+    await loadUserBans();
+}
+
+async function loadReviewBans() {
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/review-bans?adminUserId=${currentUser.userId}`);
+        if (!resp.ok) return;
+        const bans = await resp.json();
+        const container = document.getElementById('admin-review-bans-list');
+        container.innerHTML = '';
+        if (!bans.length) { container.innerHTML = '<p>Нет банов на отзывы</p>'; return; }
+
+        bans.forEach(b => {
+            const item = document.createElement('div');
+            item.className = 'admin-list-item';
+            const expiryText = b.expiresAt ? new Date(b.expiresAt).toLocaleString('ru-RU') : 'Навсегда';
+
+            let statusText;
+            if (b.isActive) {
+                statusText = '🔴 Активен';
+            } else if (b.unbannedByName) {
+                statusText = `🟢 Разбанен (${b.unbannedByName})`;
+            } else {
+                statusText = '⚪ Истёк';
+            }
+
+            item.innerHTML = `
+                <div class="admin-list-info">
+                    <div class="admin-list-name"><span class="clickable-user" onclick="openPublicProfile(${b.userId})">${b.userName}</span> ${statusText}</div>
+                    <div class="admin-list-detail">Причина: ${b.reason}</div>
+                    <div class="admin-list-detail" style="color:#999;">До: ${expiryText} | Забанил: ${b.bannedByName}</div>
+                    ${b.unbannedAt ? `<div class="admin-list-detail" style="color:#27ae60;">Разбанен: ${new Date(b.unbannedAt).toLocaleString('ru-RU')}</div>` : ''}
+                </div>
+                <div class="admin-list-actions">
+                    ${b.isActive ? `<button class="btn" onclick="removeReviewBan(${b.banId})">Снять</button>` : ''}
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) { console.error(err); }
+}
+
+async function loadUserBans() {
+    try {
+        const resp = await fetch(`${API_BASE_URL}/admin/user-bans?adminUserId=${currentUser.userId}`);
+        if (!resp.ok) return;
+        const bans = await resp.json();
+        const container = document.getElementById('admin-user-bans-list');
+        container.innerHTML = '';
+        if (!bans.length) { container.innerHTML = '<p>Нет забаненных пользователей</p>'; return; }
+
+        bans.forEach(b => {
+            const item = document.createElement('div');
+            item.className = 'admin-list-item';
+            const expiryText = b.expiresAt ? new Date(b.expiresAt).toLocaleString('ru-RU') : 'Навсегда';
+
+            let statusText;
+            if (b.isActive) {
+                statusText = '🔴 Активен';
+            } else if (b.unbannedByName) {
+                statusText = `🟢 Разбанен (${b.unbannedByName})`;
+            } else {
+                statusText = '⚪ Истёк';
+            }
+
+            item.innerHTML = `
+                <div class="admin-list-info">
+                    <div class="admin-list-name"><span class="clickable-user" onclick="openPublicProfile(${b.userId})">${b.userName}</span> ${statusText}</div>
+                    <div class="admin-list-detail">Причина: ${b.reason}</div>
+                    <div class="admin-list-detail" style="color:#999;">До: ${expiryText} | Забанил: ${b.bannedByName}</div>
+                    ${b.unbannedAt ? `<div class="admin-list-detail" style="color:#27ae60;">Разбанен: ${new Date(b.unbannedAt).toLocaleString('ru-RU')}</div>` : ''}
+                </div>
+                <div class="admin-list-actions">
+                    ${b.isActive ? `<button class="btn" onclick="removeUserBan(${b.banId})">Разбанить</button>` : ''}
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) { console.error(err); }
+}
+
+async function removeReviewBan(banId) {
+    if (!confirm('Снять бан на отзывы?')) return;
+    try {
+        await fetch(`${API_BASE_URL}/admin/review-bans/${banId}?adminUserId=${currentUser.userId}`, { method: 'DELETE' });
+        showMessage('Бан снят', 'info');
+        loadAdminBans();
+    } catch (err) { console.error(err); }
+}
+
+async function removeUserBan(banId) {
+    if (!confirm('Разбанить пользователя?')) return;
+    try {
+        await fetch(`${API_BASE_URL}/admin/user-bans/${banId}?adminUserId=${currentUser.userId}`, { method: 'DELETE' });
+        showMessage('Пользователь разбанен', 'info');
+        loadAdminBans();
+    } catch (err) { console.error(err); }
+}
+
+// ---- Модалка бана ----
+
+function openBanModal(type, userId, userName) {
+    document.getElementById('ban-type').value = type;
+    document.getElementById('ban-user-id').value = userId;
+    document.getElementById('ban-user-name').textContent = userName;
+    document.getElementById('ban-modal-title').textContent = type === 'review' ? 'Бан на отзывы' : 'Бан пользователя';
+    document.getElementById('ban-reason').value = '';
+    document.getElementById('ban-modal').classList.remove('hidden');
+}
+
+function closeBanModal() {
+    document.getElementById('ban-modal').classList.add('hidden');
+}
+
+async function submitBan(event) {
+    event.preventDefault();
+    if (!isAdmin()) return;
+    const type = document.getElementById('ban-type').value;
+    const userId = parseInt(document.getElementById('ban-user-id').value);
+    const reason = document.getElementById('ban-reason').value.trim();
+    const duration = document.getElementById('ban-duration').value;
+    if (!reason) { showMessage('Укажите причину', 'error'); return; }
+
+    const url = type === 'review' ? `${API_BASE_URL}/admin/review-bans` : `${API_BASE_URL}/admin/user-bans`;
+    try {
+        const resp = await fetch(url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminUserId: currentUser.userId, userId, reason, duration })
+        });
+        if (!resp.ok) { const txt = await resp.text(); showMessage(`Ошибка: ${txt}`, 'error'); return; }
+        closeBanModal();
+        showMessage('Бан применён', 'info');
+        if (currentAdminTab === 'bans') loadAdminBans();
+        if (currentAdminTab === 'users') loadAdminUsers();
+    } catch (err) { console.error(err); }
+}
+
+// ---- Категории ----
+
+async function loadAdminCategories() {
+    if (!isAdmin()) return;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/categories`);
+        if (!resp.ok) return;
+        const cats = await resp.json();
+        const container = document.getElementById('admin-categories-list');
+        container.innerHTML = '';
+
+        cats.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'admin-category-item';
+            item.innerHTML = `
+                <div>
+                    <div class="admin-category-name">${c.name}</div>
+                </div>
+                <div style="display:flex;gap:0.3rem;">
+                    <button class="btn" onclick="openCategoryForm(${c.id}, '${escapeHtmlAttr(c.name)}')">Ред.</button>
+                    <button class="btn" onclick="adminDeleteCategory(${c.id})">Удалить</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) { console.error(err); }
+}
+
+function openCategoryForm(id = null, name = '') {
+    document.getElementById('category-edit-id').value = id || '';
+    document.getElementById('category-name').value = name;
+    document.getElementById('category-modal-title').textContent = id ? 'Редактировать категорию' : 'Добавить категорию';
+    document.getElementById('category-modal').classList.remove('hidden');
+}
+
+function closeCategoryModal() {
+    document.getElementById('category-modal').classList.add('hidden');
+}
+
+async function submitCategory(event) {
+    event.preventDefault();
+    if (!isAdmin()) return;
+    const id = document.getElementById('category-edit-id').value;
+    const name = document.getElementById('category-name').value.trim();
+    if (!name) { showMessage('Введите название', 'error'); return; }
+
+    try {
+        let resp;
+        if (id) {
+            resp = await fetch(`${API_BASE_URL}/admin/categories/${id}?adminUserId=${currentUser.userId}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description })
+            });
+        } else {
+            resp = await fetch(`${API_BASE_URL}/admin/categories?adminUserId=${currentUser.userId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description })
+            });
+        }
+        if (!resp.ok) { const txt = await resp.text(); showMessage(`Ошибка: ${txt}`, 'error'); return; }
+        closeCategoryModal();
+        showMessage('Категория сохранена', 'info');
+        loadAdminCategories();
+        loadFilterCategories();
+    } catch (err) { console.error(err); }
+}
+
+async function adminDeleteCategory(id) {
+    if (!confirm('Удалить категорию?')) return;
+    try {
+        await fetch(`${API_BASE_URL}/admin/categories/${id}?adminUserId=${currentUser.userId}`, { method: 'DELETE' });
+        showMessage('Категория удалена', 'info');
+        loadAdminCategories();
+        loadFilterCategories();
+    } catch (err) { console.error(err); }
+}
+
+function escapeHtmlAttr(text) {
+    return (text || '').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, ' ');
+}
+
+async function checkCurrentUserBan() {
+    if (!currentUser) return;
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/auth/check-ban?userId=${currentUser.userId}`);
+        if (resp.status === 401) {
+            const txt = await resp.text();
+            showMessage(txt, "error");
+            logout();
+            return;
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     loadCurrentUserFromStorage();
 
@@ -2361,7 +3048,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    setInterval(updateUnreadBadge, 30000);
+    setInterval(() => {
+        updateUnreadBadge();
+        updateNotificationsBadge();
+        checkCurrentUserBan();
+    }, 30000);
 });
 
 document.addEventListener("click", (e) => {
