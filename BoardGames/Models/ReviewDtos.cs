@@ -49,4 +49,6 @@ public class PublicProfileDto
 
     // Существующий отзыв текущего пользователя (если есть)
     public ReviewDto? MyReview { get; set; }
+
+    public bool IsReviewBanned { get; set; }
 }

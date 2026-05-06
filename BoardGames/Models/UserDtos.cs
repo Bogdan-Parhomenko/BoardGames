@@ -9,6 +9,7 @@ public class UserProfileDto
     public string? Phone { get; set; }
     public string? City { get; set; }
     public string? Photo { get; set; }
+    public long? VkId { get; set; }
 }
 
 public class UpdateProfileRequest

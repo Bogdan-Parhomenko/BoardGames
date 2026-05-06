@@ -44,6 +44,17 @@ public class ReviewsController : ControllerBase
 
         if (currentUserId.HasValue && currentUserId.Value != userId)
         {
+            // Проверка бана на отзывы
+            var isReviewBanned = await _db.ReviewBans.AnyAsync(b =>
+                b.UserId == currentUserId.Value &&
+                b.IsActive &&
+                (b.ExpiresAt == null || b.ExpiresAt > DateTime.UtcNow));
+
+            if (isReviewBanned)
+            {
+                canReview = false;
+            }
+
             var existingReview = reviews.FirstOrDefault(r => r.ReviewerId == currentUserId.Value);
             if (existingReview != null)
             {
@@ -89,7 +100,11 @@ public class ReviewsController : ControllerBase
                 Comment = r.Comment,
                 CreatedAt = r.CreatedAt,
                 IsOwn = currentUserId.HasValue && r.ReviewerId == currentUserId.Value
-            }).ToList()
+            }).ToList(),
+            IsReviewBanned = await _db.ReviewBans.AnyAsync(b =>
+                b.UserId == (currentUserId ?? 0) &&
+                b.IsActive &&
+                (b.ExpiresAt == null || b.ExpiresAt > DateTime.UtcNow))
         };
     }
 
@@ -99,6 +114,15 @@ public class ReviewsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ReviewDto>> CreateReview(CreateReviewRequest request)
     {
+        // Проверка бана на отзывы
+        var isReviewBanned = await _db.ReviewBans.AnyAsync(b =>
+            b.UserId == request.ReviewerId &&
+            b.IsActive &&
+            (b.ExpiresAt == null || b.ExpiresAt > DateTime.UtcNow));
+
+        if (isReviewBanned)
+            return BadRequest("Вам временно запрещено оставлять отзывы");
+
         if (request.ReviewerId == request.TargetUserId)
             return BadRequest("Нельзя оставить отзыв о себе");
 

@@ -1,0 +1,6 @@
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS vk_id BIGINT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_users_vk_id
+ON users(vk_id)
+WHERE vk_id IS NOT NULL;
